@@ -99,7 +99,7 @@ git push origin v1.0.0
 
 That publishes `1.0.0`, `1.0`, `latest`, and a commit-specific tag. The workflow also supports a manual run from GitHub's Actions page. Container provenance is attached to each published image.
 
-GitHub Container Registry packages are private when first created. After the first successful workflow run, open the `arrse` package settings on GitHub and change its visibility to public so Compose can pull it without authentication. Private installations must first run `docker login ghcr.io` with a token that has `read:packages` permission.
+The published Arrse image is public, so Compose can pull it without a registry login. If a private fork publishes under a private package, authenticate first with `docker login ghcr.io` using a token that has `read:packages` permission.
 
 ## Recovery notes
 
