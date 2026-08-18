@@ -8,6 +8,16 @@ const stop = () => { stopping = true; log("INFO", "shutdown requested; waiting f
 process.once("SIGTERM", stop);
 process.once("SIGINT", stop);
 
+async function waitOrStop(milliseconds: number): Promise<void> {
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(() => { clearInterval(check); resolve(); }, milliseconds);
+    const check = setInterval(() => {
+      if (stopping) { clearTimeout(timer); clearInterval(check); resolve(); }
+    }, 500);
+    timer.unref();
+  });
+}
+
 async function main(): Promise<void> {
   const config = loadConfig();
   const state = new StateStore(config.configDir);
@@ -20,20 +30,23 @@ async function main(): Promise<void> {
     scanIntervalMinutes: config.scanIntervalMinutes
   });
   if (!config.dryRun) {
-    log("INFO", "checking Intel QSV HEVC encoder", { device: config.qsvDevice });
-    await verifyQsv(config);
-    log("INFO", "Intel QSV HEVC encoder ready", { device: config.qsvDevice });
+    while (!stopping) {
+      try {
+        log("INFO", "checking Intel QSV HEVC encoder", { device: config.qsvDevice });
+        await verifyQsv(config);
+        log("INFO", "Intel QSV HEVC encoder ready", { device: config.qsvDevice });
+        break;
+      } catch (error) {
+        log("ERROR", "Intel QSV self-test failed; scanning paused and will retry in 60 seconds", { error: String(error) });
+        await waitOrStop(60_000);
+      }
+    }
+    if (stopping) return;
   }
   do {
     await optimizer.scanOnce();
     if (stopping || config.scanIntervalMinutes === 0) break;
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(() => { clearInterval(check); resolve(); }, config.scanIntervalMinutes * 60_000);
-      const check = setInterval(() => {
-        if (stopping) { clearTimeout(timer); clearInterval(check); resolve(); }
-      }, 500);
-      timer.unref();
-    });
+    await waitOrStop(config.scanIntervalMinutes * 60_000);
   } while (!stopping);
 }
 

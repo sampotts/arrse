@@ -13,7 +13,7 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - Skips HEVC, AV1, PQ, HLG, Dolby Vision, HDR10+, and streams carrying HDR mastering metadata.
 - Maps every input stream. Audio, subtitle, attachment, and data streams are stream-copied; chapters and metadata are mapped from the source.
 - Uses QSV constant-quantizer (CQP) encoding at a high-quality default of 20 without scaling. Lower `QSV_QUALITY` values increase quality and file size.
-- Runs a one-frame HEVC QSV self-test before scanning when `DRY_RUN=false`, so a missing or incompatible Intel runtime fails once at startup instead of failing every media file.
+- Runs a one-frame HEVC QSV self-test before scanning when `DRY_RUN=false`. If it fails, scanning remains paused and the test retries once per minute without restarting the container.
 - Writes the transcode to `/cache`, then validates it with `ffprobe`. Validation checks HEVC video, copied audio/subtitle/attachment codecs and counts, chapter count, and duration.
 - Rejects outputs whose resolution, display aspect ratio, frame rate, or SDR color signaling differs from the source.
 - Checks the source size and modification time again before replacement, preventing replacement if another program changed it during encoding.

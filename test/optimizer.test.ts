@@ -18,7 +18,7 @@ test("ffmpeg uses QSV HEVC for only the content video and copies everything else
   assert.equal(args[args.indexOf("-c:2") + 1], "hevc_qsv");
   assert.equal(args[args.indexOf("-q:2") + 1], "20");
   assert.ok(!args.includes("-global_quality:2"));
-  assert.ok(!args.some((arg) => arg.startsWith("-low_power")));
+  assert.equal(args[args.indexOf("-low_power:2") + 1], "0");
   assert.ok(!args.includes("-hwaccel"));
   assert.match(args.join(" "), /renderD128/);
 });
@@ -28,5 +28,6 @@ test("QSV self-test performs a one-frame HEVC hardware encode", () => {
   assert.equal(args[args.indexOf("-c:v") + 1], "hevc_qsv");
   assert.equal(args[args.indexOf("-frames:v") + 1], "1");
   assert.equal(args[args.indexOf("-q:v") + 1], "20");
+  assert.equal(args[args.indexOf("-low_power:v") + 1], "0");
   assert.equal(args.at(-1), "-");
 });

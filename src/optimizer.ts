@@ -20,6 +20,7 @@ export function qsvSelfTestArgs(config: Config): string[] {
     "-frames:v", "1", "-an",
     "-c:v", "hevc_qsv",
     "-q:v", String(config.qsvQuality),
+    "-low_power:v", "0",
     "-f", "null", "-"
   ];
 }
@@ -48,6 +49,8 @@ export function ffmpegArgs(source: string, output: string, videoStreamIndex: num
     // -global_quality), CQP is available on older Intel HEVC encoders too.
     `-q:${videoStreamIndex}`, String(config.qsvQuality),
     `-preset:${videoStreamIndex}`, config.qsvPreset,
+    // Some Intel generations cannot use the VDEnc/low-power HEVC path.
+    `-low_power:${videoStreamIndex}`, "0",
     "-max_muxing_queue_size", "4096",
     output
   ];
