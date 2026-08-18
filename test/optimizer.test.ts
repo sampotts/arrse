@@ -16,5 +16,6 @@ test("ffmpeg uses QSV HEVC for only the content video and copies everything else
   assert.ok(args.includes("-map_metadata"));
   assert.ok(args.includes("-map_chapters"));
   assert.equal(args[args.indexOf("-c:2") + 1], "hevc_qsv");
+  assert.equal(args[args.indexOf("-low_power:2") + 1], "0");
   assert.match(args.join(" "), /renderD128/);
 });
