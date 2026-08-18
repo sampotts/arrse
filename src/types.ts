@@ -1,5 +1,5 @@
 export interface Config {
-  mediaPaths: string[];
+  inputPaths: string[];
   cacheDir: string;
   configDir: string;
   workers: number;

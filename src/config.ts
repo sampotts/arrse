@@ -32,22 +32,22 @@ function apiConfig(prefix: "SONARR" | "RADARR") {
 }
 
 export function loadConfig(): Config {
-  let mediaPaths: unknown;
+  let inputPaths: unknown;
   try {
-    mediaPaths = JSON.parse(process.env.MEDIA_PATHS ?? "");
+    inputPaths = JSON.parse(process.env.INPUT_PATHS ?? "");
   } catch {
-    throw new Error('MEDIA_PATHS must be a JSON array such as ["/media/TV","/media/Movies"]');
+    throw new Error('INPUT_PATHS must be a JSON array such as ["/input"]');
   }
-  if (!Array.isArray(mediaPaths) || mediaPaths.length === 0 || mediaPaths.some((value) => typeof value !== "string" || value.trim() === "")) {
-    throw new Error("MEDIA_PATHS must contain at least one path");
+  if (!Array.isArray(inputPaths) || inputPaths.length === 0 || inputPaths.some((value) => typeof value !== "string" || value.trim() === "")) {
+    throw new Error("INPUT_PATHS must contain at least one path");
   }
-  const normalizedMediaPaths = [...new Set(mediaPaths.map((value) => value.trim()))];
-  if (normalizedMediaPaths.some((mediaPath) => !path.isAbsolute(mediaPath))) {
-    throw new Error("MEDIA_PATHS entries must be absolute paths");
+  const normalizedInputPaths = [...new Set(inputPaths.map((value) => value.trim()))];
+  if (normalizedInputPaths.some((inputPath) => !path.isAbsolute(inputPath))) {
+    throw new Error("INPUT_PATHS entries must be absolute paths");
   }
 
   return {
-    mediaPaths: normalizedMediaPaths,
+    inputPaths: normalizedInputPaths,
     cacheDir: process.env.CACHE_DIR ?? "/cache",
     configDir: process.env.CONFIG_DIR ?? "/config",
     workers: integerEnv("WORKERS", 2, 1, 32),

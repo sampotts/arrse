@@ -116,7 +116,7 @@ export class Optimizer {
   async scanOnce(): Promise<void> {
     await mkdir(this.config.cacheDir, { recursive: true });
     const files = new Set<string>();
-    for (const root of this.config.mediaPaths) {
+    for (const root of this.config.inputPaths) {
       try {
         for await (const file of scan(root)) files.add(file);
       } catch (error) {

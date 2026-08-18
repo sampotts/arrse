@@ -4,7 +4,7 @@ import { ffmpegArgs } from "../src/optimizer.js";
 import { Config } from "../src/types.js";
 
 const config: Config = {
-  mediaPaths: ["/media/TV", "/media/Movies"], cacheDir: "/cache", configDir: "/config",
+  inputPaths: ["/input"], cacheDir: "/cache", configDir: "/config",
   workers: 2, dryRun: true, scanIntervalMinutes: 60, minSavingsPercent: 15,
   qsvQuality: 23, qsvPreset: "medium", qsvDevice: "/dev/dri/renderD128"
 };

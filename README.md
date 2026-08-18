@@ -25,7 +25,7 @@ The service logs status labels including `SCAN`, `SKIP`, `TRANSCODE`, `VALIDATE`
 
 1. Confirm the Intel GPU is available on the host as `/dev/dri/renderD128`.
 2. Copy `.env.example` to `.env`. Leave `DRY_RUN=true` initially.
-3. Set `MEDIA_PATH`, `MEDIA_CONTAINER_PATH`, and `MEDIA_PATHS` in `.env`. There is no default media path. The media mount must be writable for replacement and rename.
+3. Set `INPUT_PATH` in `.env`. There is no default input path. The mount must be writable because successful outputs replace their source files in place.
 4. Pull and start:
 
    ```sh
@@ -57,21 +57,21 @@ docker exec arrse ffmpeg -hide_banner -encoders
 | `QSV_DEVICE` | `/dev/dri/renderD128` | Intel render device |
 | `QSV_QUALITY` | `23` | QSV global-quality value; lower generally means higher quality/larger output |
 | `QSV_PRESET` | `medium` | `hevc_qsv` preset |
-| `MEDIA_PATHS` | required | JSON array of absolute input paths to scan recursively |
+| `INPUT_PATHS` | required outside Compose | JSON array of absolute input paths to scan recursively; Compose sets this to `["/input"]` |
 | `CACHE_DIR` | `/cache` | Temporary transcode directory |
 | `CONFIG_DIR` | `/config` | Persistent state directory |
 | `SONARR_URL`, `SONARR_API_KEY` | unset | Optional Sonarr v3 connection |
 | `RADARR_URL`, `RADARR_API_KEY` | unset | Optional Radarr v3 connection |
 
-For example, a library can be mounted and scanned at `/library` with:
+For a Compose installation, the only required path setting is:
 
 ```env
-MEDIA_PATH=/host/path/to/library
-MEDIA_CONTAINER_PATH=/library
-MEDIA_PATHS=["/library"]
+INPUT_PATH=/host/path/to/library
 ```
 
-To scan selected subdirectories, use an array such as `MEDIA_PATHS=["/library/TV","/library/Movies"]`. Arrse treats every entry identically; it has no TV- or movie-specific path behavior. For libraries that do not share a host parent, add one volume mapping per host filesystem to `docker-compose.yml` and include every in-container target in `MEDIA_PATHS`.
+Compose mounts that directory at `/input`, and Arrse scans it recursively. There is no output-path setting: temporary output uses `/cache`, and a validated, sufficiently smaller result atomically replaces its source. This is equivalent to an output of `.` for every source file.
+
+For advanced deployments with inputs on unrelated host filesystems, add one volume mapping per input and override `INPUT_PATHS` with their in-container paths, for example `INPUT_PATHS=["/input-a","/input-b"]`. Arrse treats every entry identically.
 
 ## Sonarr and Radarr
 
