@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
-import { ffmpegArgs, qsvSelfTestArgs, vaapiSelfTestArgs } from "../src/optimizer.js";
+import { cleanupOrphanedCacheFiles, ffmpegArgs, qsvSelfTestArgs, vaapiSelfTestArgs } from "../src/optimizer.js";
 import { Config } from "../src/types.js";
 
 const config: Config = {
@@ -39,11 +42,27 @@ test("VAAPI fallback self-test performs a one-frame HEVC hardware encode", () =>
   assert.equal(args[args.indexOf("-qp:v") + 1], "20");
 });
 
-test("VAAPI fallback uploads only video and preserves the mapped streams", () => {
+test("VAAPI fallback uses zero-copy hardware decode and preserves mapped streams", () => {
   const args = ffmpegArgs("/media/show.mkv", "/cache/out.mkv", 2, config, "vaapi");
   assert.equal(args[args.indexOf("-c:2") + 1], "hevc_vaapi");
-  assert.equal(args[args.indexOf("-filter:2") + 1], "format=nv12,hwupload");
   assert.equal(args[args.indexOf("-qp:2") + 1], "20");
+  assert.equal(args[args.indexOf("-hwaccel") + 1], "vaapi");
+  assert.equal(args[args.indexOf("-hwaccel_output_format") + 1], "vaapi");
+  assert.ok(!args.some((arg) => arg.startsWith("-filter:")));
   assert.ok(args.includes("copy"));
   assert.ok(!args.includes("hevc_qsv"));
+});
+
+test("startup removes only orphaned Arrse cache outputs", async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), "arrse-cache-"));
+  const orphan = "0123456789abcdef-12345678-1234-4234-9234-123456789abc.mkv";
+  try {
+    await writeFile(path.join(directory, orphan), "partial");
+    await writeFile(path.join(directory, "keep-me.mkv"), "unrelated");
+    assert.equal(await cleanupOrphanedCacheFiles(directory), 1);
+    await assert.rejects(() => stat(path.join(directory, orphan)));
+    assert.equal((await stat(path.join(directory, "keep-me.mkv"))).isFile(), true);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });

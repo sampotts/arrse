@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, stat, unlink } from "node:fs/promises";
+import { mkdir, opendir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { notifyArr } from "./arr.js";
 import { log } from "./logger.js";
@@ -11,6 +11,20 @@ import { StateStore } from "./state.js";
 import { Config, HardwareEncoder } from "./types.js";
 
 export type Runner = typeof run;
+
+const CACHE_OUTPUT_PATTERN = /^[a-f0-9]{16}-[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.(?:mkv|mp4|m4v|mov|ts|m2ts)$/i;
+
+export async function cleanupOrphanedCacheFiles(cacheDir: string): Promise<number> {
+  await mkdir(cacheDir, { recursive: true });
+  const directory = await opendir(cacheDir);
+  let removed = 0;
+  for await (const entry of directory) {
+    if (!entry.isFile() || !CACHE_OUTPUT_PATTERN.test(entry.name)) continue;
+    await unlink(path.join(cacheDir, entry.name));
+    removed += 1;
+  }
+  return removed;
+}
 
 export function qsvSelfTestArgs(config: Config): string[] {
   return [
@@ -61,7 +75,12 @@ export function ffmpegArgs(
 ): string[] {
   const deviceArgs = encoder === "qsv"
     ? ["-init_hw_device", `qsv=qs:${config.qsvDevice}`]
-    : ["-vaapi_device", config.qsvDevice];
+    : [
+        "-vaapi_device", config.qsvDevice,
+        "-hwaccel", "vaapi",
+        "-hwaccel_device", config.qsvDevice,
+        "-hwaccel_output_format", "vaapi"
+      ];
   const encoderArgs = encoder === "qsv"
     ? [
         `-c:${videoStreamIndex}`, "hevc_qsv",
@@ -70,7 +89,6 @@ export function ffmpegArgs(
         `-low_power:${videoStreamIndex}`, "0"
       ]
     : [
-        `-filter:${videoStreamIndex}`, "format=nv12,hwupload",
         `-c:${videoStreamIndex}`, "hevc_vaapi",
         `-qp:${videoStreamIndex}`, String(config.qsvQuality)
       ];

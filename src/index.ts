@@ -1,6 +1,6 @@
 import { loadConfig } from "./config.js";
 import { log } from "./logger.js";
-import { Optimizer, verifyQsv, verifyVaapi } from "./optimizer.js";
+import { cleanupOrphanedCacheFiles, Optimizer, verifyQsv, verifyVaapi } from "./optimizer.js";
 import { StateStore } from "./state.js";
 import { HardwareEncoder } from "./types.js";
 
@@ -23,6 +23,8 @@ async function main(): Promise<void> {
   const config = loadConfig();
   const state = new StateStore(config.configDir);
   await state.load();
+  const orphanedCacheFiles = await cleanupOrphanedCacheFiles(config.cacheDir);
+  if (orphanedCacheFiles > 0) log("INFO", "removed orphaned cache outputs", { files: orphanedCacheFiles });
   let encoder: HardwareEncoder = "qsv";
   log("INFO", "Arrse started", {
     inputPaths: config.inputPaths,

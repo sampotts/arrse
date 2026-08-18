@@ -13,6 +13,8 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - Skips HEVC, AV1, PQ, HLG, Dolby Vision, HDR10+, and streams carrying HDR mastering metadata.
 - Maps every input stream. Audio, subtitle, attachment, and data streams are stream-copied; chapters and metadata are mapped from the source.
 - Prefers `hevc_qsv` and automatically falls back to `hevc_vaapi` when the Intel QSV/oneVPL path is incompatible. Both use the Intel GPU's hardware HEVC encoder.
+- The VAAPI fallback uses zero-copy hardware H.264 decoding and HEVC encoding to keep CPU usage low.
+- On startup, removes only abandoned temporary outputs matching Arrse's private cache filename format; unrelated `/cache` files are left alone.
 - Uses constant-quantizer encoding at a high-quality default of 20 without scaling. Lower `QSV_QUALITY` values increase quality and file size.
 - Runs one-frame hardware encoder self-tests before scanning when `DRY_RUN=false`. If both backends fail, scanning remains paused and the tests retry once per minute without restarting the container.
 - Writes the transcode to `/cache`, then validates it with `ffprobe`. Validation checks HEVC video, copied audio/subtitle/attachment codecs and counts, chapter count, and duration.
