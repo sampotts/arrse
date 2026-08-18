@@ -1,0 +1,21 @@
+{
+  "name": "arrse",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A TypeScript Intel Quick Sync media optimizer for Sonarr and Radarr",
+  "type": "module",
+  "main": "dist/src/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/src/index.js",
+    "dev": "node --enable-source-maps dist/src/index.js",
+    "test": "npm run build && node --test dist/test/*.test.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}
