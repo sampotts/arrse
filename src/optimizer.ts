@@ -22,9 +22,6 @@ export function ffmpegArgs(source: string, output: string, videoStreamIndex: num
   return [
     "-hide_banner", "-nostdin", "-y",
     "-init_hw_device", `qsv=qs:${config.qsvDevice}`,
-    "-filter_hw_device", "qs",
-    "-hwaccel", "qsv",
-    "-hwaccel_output_format", "qsv",
     "-i", source,
     "-map", "0",
     "-map_metadata", "0",
@@ -35,9 +32,6 @@ export function ffmpegArgs(source: string, output: string, videoStreamIndex: num
     // -global_quality), CQP is available on older Intel HEVC encoders too.
     `-q:${videoStreamIndex}`, String(config.qsvQuality),
     `-preset:${videoStreamIndex}`, config.qsvPreset,
-    // Some Intel runtimes reject FFmpeg's automatic low-power negotiation.
-    // Normal-power mode is supported more broadly and still uses hevc_qsv.
-    `-low_power:${videoStreamIndex}`, "0",
     "-max_muxing_queue_size", "4096",
     output
   ];
