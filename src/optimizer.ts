@@ -2,9 +2,9 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, opendir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { notifyArr } from "./arr.js";
-import { log } from "./logger.js";
+import { log, quote } from "./logger.js";
 import { eligibility, mediaDuration, probe, validateTranscode } from "./probe.js";
-import { createMilestoneProgress, formatProgressMessage } from "./progress.js";
+import { createMilestoneProgress, formatBytes, formatProgressMessage } from "./progress.js";
 import { run } from "./process.js";
 import { safelyReplace } from "./replace.js";
 import { scan } from "./scan.js";
@@ -123,7 +123,7 @@ export class Optimizer {
   async processFile(source: string): Promise<void> {
     if (this.signal?.aborted) return;
     if (this.active.has(source)) {
-      log("SKIP", "file already has an active job", { file: source });
+      log("SKIP", `File already has an active job ${quote(source)}`);
       return;
     }
     this.active.add(source);
@@ -131,24 +131,25 @@ export class Optimizer {
     try {
       const sourceStat = await stat(source);
       if (this.state.isCurrent(source, sourceStat.size, sourceStat.mtimeMs)) {
-        log("SKIP", "unchanged file already processed", { file: source });
+        log("SKIP", `Unchanged file already processed ${quote(source)}`);
         return;
       }
       const input = await probe(source);
       const check = eligibility(input);
       if (!check.eligible) {
-        log("SKIP", check.reason, { file: source });
+        const reason = check.reason.charAt(0).toUpperCase() + check.reason.slice(1);
+        log("SKIP", `${reason} ${quote(source)}`);
         return;
       }
       if (this.config.dryRun) {
-        log("TRANSCODE", "dry run: eligible H.264 SDR file", { file: source });
+        log("TRANSCODE", `Dry run: eligible H.264 SDR file ${quote(source)}`);
         await this.state.record(source, "dry-run");
         return;
       }
 
       const digest = createHash("sha256").update(source).digest("hex").slice(0, 16);
       cacheOutput = path.join(this.config.cacheDir, `${digest}-${randomUUID()}${path.extname(source)}`);
-      log("TRANSCODE", "starting Intel hardware HEVC transcode", { file: source, output: cacheOutput, encoder: this.encoder });
+      log("TRANSCODE", `Starting Intel hardware HEVC transcode using ${this.encoder.toUpperCase()} ${quote(source)}`);
       const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds }) => {
         log("PROGRESS", formatProgressMessage(percent, etaSeconds, source));
       });
@@ -156,15 +157,15 @@ export class Optimizer {
 
       if (this.signal?.aborted) throw this.signal.reason;
 
-      log("VALIDATE", "validating cached output with ffprobe", { file: source });
       const output = await probe(cacheOutput);
       const validationErrors = validateTranscode(input, output);
       if (validationErrors.length > 0) throw new Error(validationErrors.join("; "));
+      log("VALIDATE", `Validation complete ${quote(source)}`);
 
       const outputStat = await stat(cacheOutput);
       const savingsPercent = ((sourceStat.size - outputStat.size) / sourceStat.size) * 100;
       if (savingsPercent < this.config.minSavingsPercent) {
-        log("SKIP", "output did not meet minimum savings", { file: source, savingsPercent: Number(savingsPercent.toFixed(2)) });
+        log("SKIP", `Output saved ${savingsPercent.toFixed(2)}%, below the ${this.config.minSavingsPercent}% minimum ${quote(source)}`);
         await this.state.record(source, "not-smaller", `${savingsPercent.toFixed(2)}% savings`);
         return;
       }
@@ -175,27 +176,23 @@ export class Optimizer {
       }
       await safelyReplace(source, cacheOutput, input);
       await this.state.record(source, "saved", `${savingsPercent.toFixed(2)}% savings`);
-      log("SAVED", "source replaced safely", {
-        file: source,
-        savingsPercent: Number(savingsPercent.toFixed(2)),
-        bytesSaved: sourceStat.size - outputStat.size
-      });
+      log("SAVED", `Source replaced safely. Saved ${savingsPercent.toFixed(2)}% (${formatBytes(sourceStat.size - outputStat.size)}) ${quote(source)}`);
       try {
         await notifyArr(source, this.config.sonarr, this.config.radarr);
       } catch (error) {
         // Replacing the media succeeded. An automation API outage must not make
         // the already-HEVC file eligible for a replacement retry.
-        log("ERROR", "Arr notification failed after successful replacement", { file: source, error: String(error) });
+        log("ERROR", `Arr notification failed after successful replacement: ${String(error)} ${quote(source)}`);
       }
     } catch (error) {
       if (this.signal?.aborted) {
-        log("INFO", "transcode cancelled during shutdown; original left in place", { file: source });
+        log("INFO", `Transcode cancelled during shutdown; original left in place ${quote(source)}`);
       } else {
-        log("ERROR", "job failed; original was left in place unless SAVED was already logged", { file: source, error: String(error) });
+        log("ERROR", `Job failed; original left in place: ${String(error)} ${quote(source)}`);
         try { await this.state.record(source, "error", String(error)); } catch { /* The source may have been renamed by Arr. */ }
       }
     } finally {
-      if (cacheOutput) await removeIfPresent(cacheOutput).catch((error) => log("ERROR", "could not clean cache output", { file: cacheOutput, error: String(error) }));
+      if (cacheOutput) await removeIfPresent(cacheOutput).catch((error) => log("ERROR", `Could not clean cache output: ${String(error)} ${quote(cacheOutput!)}`));
       this.active.delete(source);
     }
   }
@@ -207,11 +204,11 @@ export class Optimizer {
       try {
         for await (const file of scan(root)) files.add(file);
       } catch (error) {
-        log("ERROR", "media root scan failed", { root, error: String(error) });
+        log("ERROR", `Media root scan failed: ${String(error)} ${quote(root)}`);
       }
     }
     const queue = [...files].sort();
-    log("SCAN", "scan complete", { files: queue.length, workers: this.config.workers });
+    log("SCAN", `Found ${queue.length} media file${queue.length === 1 ? "" : "s"} using ${this.config.workers} worker${this.config.workers === 1 ? "" : "s"}.`);
 
     let next = 0;
     const worker = async () => {

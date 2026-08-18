@@ -1,5 +1,5 @@
 import path from "node:path";
-import { log } from "./logger.js";
+import { log, quote } from "./logger.js";
 import { ApiConfig } from "./types.js";
 
 interface ArrItem { id: number; path: string }
@@ -63,7 +63,7 @@ async function notifyOne(kind: "Sonarr" | "Radarr", config: ApiConfig, file: str
 
   const rename = await command(config, { name: "RenameFiles", [idName]: item.id, files: [mediaFile.id] });
   await waitForCommand(config, rename.id);
-  log("INFO", `${kind} rescan and rename completed`, { file });
+  log("INFO", `${kind} rescan and rename completed ${quote(file)}`);
   return true;
 }
 
@@ -75,6 +75,6 @@ export async function notifyArr(file: string, sonarr?: ApiConfig, radarr?: ApiCo
   const results = await Promise.allSettled(attempts);
   const errors = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
   const matched = results.some((result) => result.status === "fulfilled" && result.value);
-  for (const error of errors) log("ERROR", "Arr integration failed", { file, error: String(error.reason) });
-  if (!matched && errors.length === 0) log("INFO", "No Sonarr or Radarr library root matched file", { file });
+  for (const error of errors) log("ERROR", `Arr integration failed: ${String(error.reason)} ${quote(file)}`);
+  if (!matched && errors.length === 0) log("INFO", `No Sonarr or Radarr library root matched file ${quote(file)}`);
 }

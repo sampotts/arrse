@@ -1,8 +1,12 @@
 export type LogStatus = "SCAN" | "SKIP" | "TRANSCODE" | "PROGRESS" | "VALIDATE" | "SAVED" | "ERROR" | "INFO";
 
-export function log(status: LogStatus, message: string, details?: Record<string, unknown>): void {
-  const suffix = details && Object.keys(details).length > 0 ? ` ${JSON.stringify(details)}` : "";
-  const line = `${new Date().toISOString()} [${status}] ${message}${suffix}`;
+export function quote(value: string): string {
+  return JSON.stringify(value);
+}
+
+export function log(status: LogStatus, message: string): void {
+  const singleLineMessage = message.replace(/[\r\n]+/g, " ").trim();
+  const line = `${new Date().toISOString()} [${status}] ${singleLineMessage}`;
   if (status === "ERROR") console.error(line);
   else console.log(line);
 }

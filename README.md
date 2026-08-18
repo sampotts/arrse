@@ -25,7 +25,7 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - Keeps `/config/state.json` so unchanged files that failed the savings threshold are not repeatedly encoded.
 - Uses an in-memory per-path lock plus a bounded worker pool, so the same source cannot have two concurrent jobs in one service instance. Run only one container against a library.
 
-The service logs status labels including `SCAN`, `SKIP`, `TRANSCODE`, `PROGRESS`, `VALIDATE`, `SAVED`, and `ERROR` as one-line structured records. During each transcode, `PROGRESS` is logged at 25%, 50%, 75%, and 100% with FFmpeg's current processing speed and an estimated time remaining.
+The service logs status labels including `SCAN`, `SKIP`, `TRANSCODE`, `PROGRESS`, `VALIDATE`, `SAVED`, and `ERROR` as one-line plain-text records. During each transcode, `PROGRESS` is logged at 25%, 50%, 75%, and 100% with FFmpeg's current processing speed and an estimated time remaining.
 
 The ETA is an estimate based on the current encoding speed and becomes more representative as the job progresses.
 

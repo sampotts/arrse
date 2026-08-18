@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createMilestoneProgress, formatDuration, formatProgressMessage, ProgressMilestone } from "../src/progress.js";
+import { createMilestoneProgress, formatBytes, formatDuration, formatProgressMessage, ProgressMilestone } from "../src/progress.js";
 
 test("reports 25/50/75/100 milestones with speed-based ETAs", () => {
   const milestones: ProgressMilestone[] = [];
@@ -28,6 +28,12 @@ test("handles progress records split across output chunks", () => {
 
 test("formats the concise progress log message", () => {
   assert.equal(formatProgressMessage(50, 434, "/path/to/file.mp4"), `50% (ETA 7m 14s) "/path/to/file.mp4"`);
+  assert.equal(formatProgressMessage(100, 0, "/path/to/file.mp4"), `Done! "/path/to/file.mp4"`);
+});
+
+test("formats saved bytes without JSON", () => {
+  assert.equal(formatBytes(2_340_000_000), "2.34GB");
+  assert.equal(formatBytes(42_000_000), "42.00MB");
 });
 
 test("formats human-readable ETAs", () => {

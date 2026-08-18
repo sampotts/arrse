@@ -1,3 +1,5 @@
+import { quote } from "./logger.js";
+
 export interface ProgressMilestone {
   percent: number;
   etaSeconds: number;
@@ -5,7 +7,19 @@ export interface ProgressMilestone {
 }
 
 export function formatProgressMessage(percent: number, etaSeconds: number, source: string): string {
-  return `${percent}% (ETA ${formatDuration(etaSeconds)}) ${JSON.stringify(source)}`;
+  if (percent === 100) return `Done! ${quote(source)}`;
+  return `${percent}% (ETA ${formatDuration(etaSeconds)}) ${quote(source)}`;
+}
+
+export function formatBytes(bytes: number): string {
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  let value = Math.max(0, bytes);
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
+  return `${value.toFixed(unit === 0 ? 0 : 2)}${units[unit]}`;
 }
 
 export function formatDuration(seconds: number): string {
