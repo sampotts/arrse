@@ -1,6 +1,6 @@
 # Arrse
 
-A deliberately small TypeScript service for Sonarr and Radarr. Arrse scans `/data/TV` and `/data/Movies`, converts eligible H.264 SDR video to HEVC with Intel Quick Sync, and keeps the original unless the validated result is at least 15% smaller.
+A deliberately small TypeScript service for Sonarr and Radarr. Arrse scans one or more configured media roots, converts eligible H.264 SDR video to HEVC with Intel Quick Sync, and keeps the original unless the validated result is at least 15% smaller.
 
 All application and test source is TypeScript under `src/` and `test/`. The Docker build runs `tsc` and ships only the compiled JavaScript in `dist/`; there is no hand-written JavaScript application source.
 
@@ -25,7 +25,7 @@ The service logs status labels including `SCAN`, `SKIP`, `TRANSCODE`, `VALIDATE`
 
 1. Confirm the Intel GPU is available on the host as `/dev/dri/renderD128`.
 2. Copy `.env.example` to `.env`. Leave `DRY_RUN=true` initially.
-3. Set `TV_PATH`, `MOVIES_PATH`, `CONFIG_PATH`, and `CACHE_PATH` in `.env`, or edit the volume paths in `docker-compose.yml`. The TV and Movies mounts must be writable for replacement and rename.
+3. Set `MEDIA_PATH`, `MEDIA_CONTAINER_PATH`, and `MEDIA_PATHS` in `.env`. There is no default media path. The media mount must be writable for replacement and rename.
 4. Pull and start:
 
    ```sh
@@ -57,11 +57,21 @@ docker exec arrse ffmpeg -hide_banner -encoders
 | `QSV_DEVICE` | `/dev/dri/renderD128` | Intel render device |
 | `QSV_QUALITY` | `23` | QSV global-quality value; lower generally means higher quality/larger output |
 | `QSV_PRESET` | `medium` | `hevc_qsv` preset |
-| `MEDIA_ROOTS` | `/data/TV,/data/Movies` | Comma-separated scan roots |
+| `MEDIA_PATHS` | required | JSON array of absolute input paths to scan recursively |
 | `CACHE_DIR` | `/cache` | Temporary transcode directory |
 | `CONFIG_DIR` | `/config` | Persistent state directory |
 | `SONARR_URL`, `SONARR_API_KEY` | unset | Optional Sonarr v3 connection |
 | `RADARR_URL`, `RADARR_API_KEY` | unset | Optional Radarr v3 connection |
+
+For example, a library can be mounted and scanned at `/library` with:
+
+```env
+MEDIA_PATH=/host/path/to/library
+MEDIA_CONTAINER_PATH=/library
+MEDIA_PATHS=["/library"]
+```
+
+To scan selected subdirectories, use an array such as `MEDIA_PATHS=["/library/TV","/library/Movies"]`. Arrse treats every entry identically; it has no TV- or movie-specific path behavior. For libraries that do not share a host parent, add one volume mapping per host filesystem to `docker-compose.yml` and include every in-container target in `MEDIA_PATHS`.
 
 ## Sonarr and Radarr
 

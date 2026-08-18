@@ -7,11 +7,12 @@ services:
     env_file:
       - path: .env
         required: false
+    environment:
+      MEDIA_PATHS: ${MEDIA_PATHS:?set MEDIA_PATHS to a JSON array of container paths}
     devices:
       - /dev/dri:/dev/dri
     volumes:
-      - ${TV_PATH:-./media/TV}:/data/TV
-      - ${MOVIES_PATH:-./media/Movies}:/data/Movies
+      - ${MEDIA_PATH:?set MEDIA_PATH}:${MEDIA_CONTAINER_PATH:?set MEDIA_CONTAINER_PATH}
       - ${CONFIG_PATH:-./config}:/config
       - ${CACHE_PATH:-./cache}:/cache
     stop_grace_period: 30m

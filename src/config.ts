@@ -1,4 +1,5 @@
 import { Config } from "./types.js";
+import path from "node:path";
 
 function booleanEnv(name: string, defaultValue: boolean): boolean {
   const value = process.env[name];
@@ -31,8 +32,22 @@ function apiConfig(prefix: "SONARR" | "RADARR") {
 }
 
 export function loadConfig(): Config {
+  let mediaPaths: unknown;
+  try {
+    mediaPaths = JSON.parse(process.env.MEDIA_PATHS ?? "");
+  } catch {
+    throw new Error('MEDIA_PATHS must be a JSON array such as ["/media/TV","/media/Movies"]');
+  }
+  if (!Array.isArray(mediaPaths) || mediaPaths.length === 0 || mediaPaths.some((value) => typeof value !== "string" || value.trim() === "")) {
+    throw new Error("MEDIA_PATHS must contain at least one path");
+  }
+  const normalizedMediaPaths = [...new Set(mediaPaths.map((value) => value.trim()))];
+  if (normalizedMediaPaths.some((mediaPath) => !path.isAbsolute(mediaPath))) {
+    throw new Error("MEDIA_PATHS entries must be absolute paths");
+  }
+
   return {
-    roots: (process.env.MEDIA_ROOTS ?? "/data/TV,/data/Movies").split(",").map((v) => v.trim()).filter(Boolean),
+    mediaPaths: normalizedMediaPaths,
     cacheDir: process.env.CACHE_DIR ?? "/cache",
     configDir: process.env.CONFIG_DIR ?? "/config",
     workers: integerEnv("WORKERS", 2, 1, 32),

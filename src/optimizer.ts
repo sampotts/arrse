@@ -115,24 +115,24 @@ export class Optimizer {
 
   async scanOnce(): Promise<void> {
     await mkdir(this.config.cacheDir, { recursive: true });
-    const files: string[] = [];
-    for (const root of this.config.roots) {
+    const files = new Set<string>();
+    for (const root of this.config.mediaPaths) {
       try {
-        for await (const file of scan(root)) files.push(file);
+        for await (const file of scan(root)) files.add(file);
       } catch (error) {
         log("ERROR", "media root scan failed", { root, error: String(error) });
       }
     }
-    files.sort();
-    log("SCAN", "scan complete", { files: files.length, workers: this.config.workers });
+    const queue = [...files].sort();
+    log("SCAN", "scan complete", { files: queue.length, workers: this.config.workers });
 
     let next = 0;
     const worker = async () => {
-      while (next < files.length) {
+      while (next < queue.length) {
         const index = next++;
-        await this.processFile(files[index]);
+        await this.processFile(queue[index]);
       }
     };
-    await Promise.all(Array.from({ length: Math.min(this.config.workers, files.length) }, worker));
+    await Promise.all(Array.from({ length: Math.min(this.config.workers, queue.length) }, worker));
   }
 }

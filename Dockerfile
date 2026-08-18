@@ -16,6 +16,6 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/dist/src ./dist/src
-RUN mkdir -p /config /cache /data/TV /data/Movies
+RUN mkdir -p /config /cache
 VOLUME ["/config", "/cache"]
 CMD ["node", "dist/src/index.js"]

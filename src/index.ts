@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   await state.load();
   const optimizer = new Optimizer(config, state);
   log("INFO", "Arrse started", {
-    roots: config.roots,
+    mediaPaths: config.mediaPaths,
     workers: config.workers,
     dryRun: config.dryRun,
     scanIntervalMinutes: config.scanIntervalMinutes
