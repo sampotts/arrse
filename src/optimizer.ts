@@ -150,7 +150,7 @@ export class Optimizer {
       cacheOutput = path.join(this.config.cacheDir, `${digest}-${randomUUID()}${path.extname(source)}`);
       log("TRANSCODE", "starting Intel hardware HEVC transcode", { file: source, output: cacheOutput, encoder: this.encoder });
       const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds, speed }) => {
-        log("PROGRESS", `transcode ${percent}% complete`, {
+        log("PROGRESS", `${percent}%`, {
           file: source,
           percent,
           speed: speed ? `${speed.toFixed(2)}x` : "unknown",
