@@ -3,7 +3,8 @@ import { mkdir, opendir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { notifyArr } from "./arr.js";
 import { log } from "./logger.js";
-import { eligibility, probe, validateTranscode } from "./probe.js";
+import { eligibility, mediaDuration, probe, validateTranscode } from "./probe.js";
+import { createMilestoneProgress, formatDuration } from "./progress.js";
 import { run } from "./process.js";
 import { safelyReplace } from "./replace.js";
 import { scan } from "./scan.js";
@@ -94,6 +95,8 @@ export function ffmpegArgs(
       ];
   return [
     "-hide_banner", "-nostdin", "-y",
+    "-loglevel", "error", "-nostats",
+    "-progress", "pipe:1",
     ...deviceArgs,
     "-i", source,
     "-map", "0",
@@ -146,7 +149,15 @@ export class Optimizer {
       const digest = createHash("sha256").update(source).digest("hex").slice(0, 16);
       cacheOutput = path.join(this.config.cacheDir, `${digest}-${randomUUID()}${path.extname(source)}`);
       log("TRANSCODE", "starting Intel hardware HEVC transcode", { file: source, output: cacheOutput, encoder: this.encoder });
-      await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput, check.videoStream.index, this.config, this.encoder), this.signal);
+      const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds, speed }) => {
+        log("PROGRESS", `transcode ${percent}% complete`, {
+          file: source,
+          percent,
+          speed: speed ? `${speed.toFixed(2)}x` : "unknown",
+          eta: formatDuration(etaSeconds)
+        });
+      });
+      await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput, check.videoStream.index, this.config, this.encoder), this.signal, reportProgress);
 
       if (this.signal?.aborted) throw this.signal.reason;
 

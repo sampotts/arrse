@@ -54,7 +54,7 @@ export function eligibility(result: ProbeResult): { eligible: true; videoStream:
   return { eligible: true, videoStream: video };
 }
 
-function duration(result: ProbeResult): number {
+export function mediaDuration(result: ProbeResult): number {
   const formatDuration = Number(result.format?.duration);
   if (Number.isFinite(formatDuration)) return formatDuration;
   return Math.max(0, ...result.streams.map((stream) => Number(stream.duration) || 0));
@@ -107,8 +107,8 @@ export function validateTranscode(input: ProbeResult, output: ProbeResult): stri
   }
 
   if ((input.chapters?.length ?? 0) !== (output.chapters?.length ?? 0)) errors.push("chapter count changed");
-  const inputDuration = duration(input);
-  const outputDuration = duration(output);
+  const inputDuration = mediaDuration(input);
+  const outputDuration = mediaDuration(output);
   if (inputDuration <= 0 || outputDuration <= 0) errors.push("duration is missing or zero");
   else if (Math.abs(inputDuration - outputDuration) > Math.max(2, inputDuration * 0.01)) {
     errors.push(`duration changed from ${inputDuration.toFixed(2)}s to ${outputDuration.toFixed(2)}s`);

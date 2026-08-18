@@ -1,4 +1,4 @@
-export type LogStatus = "SCAN" | "SKIP" | "TRANSCODE" | "VALIDATE" | "SAVED" | "ERROR" | "INFO";
+export type LogStatus = "SCAN" | "SKIP" | "TRANSCODE" | "PROGRESS" | "VALIDATE" | "SAVED" | "ERROR" | "INFO";
 
 export function log(status: LogStatus, message: string, details?: Record<string, unknown>): void {
   const suffix = details && Object.keys(details).length > 0 ? ` ${JSON.stringify(details)}` : "";

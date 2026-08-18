@@ -1,0 +1,33 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { createMilestoneProgress, formatDuration, ProgressMilestone } from "../src/progress.js";
+
+test("reports 25/50/75/100 milestones with speed-based ETAs", () => {
+  const milestones: ProgressMilestone[] = [];
+  const progress = createMilestoneProgress(100, (value) => milestones.push(value));
+
+  progress("out_time_us=26000000\nspeed=2.0x\nprogress=continue\n");
+  progress("out_time_us=51000000\nspeed=2.5x\nprogress=continue\n");
+  progress("out_time_us=76000000\nspeed=2.0x\nprogress=continue\n");
+  progress("out_time_us=100000000\nspeed=2.0x\nprogress=end\n");
+
+  assert.deepEqual(milestones.map(({ percent }) => percent), [25, 50, 75, 100]);
+  assert.equal(milestones[0].etaSeconds, 37);
+  assert.equal(milestones[1].etaSeconds, 19.6);
+  assert.equal(milestones[2].etaSeconds, 12);
+  assert.equal(milestones[3].etaSeconds, 0);
+});
+
+test("handles progress records split across output chunks", () => {
+  const milestones: ProgressMilestone[] = [];
+  const progress = createMilestoneProgress(100, (value) => milestones.push(value));
+  progress("out_time_us=5000");
+  progress("0000\nspeed=1.0x\nprogress=continue\n");
+  assert.deepEqual(milestones.map(({ percent }) => percent), [25, 50]);
+});
+
+test("formats human-readable ETAs", () => {
+  assert.equal(formatDuration(42), "42s");
+  assert.equal(formatDuration(142), "2m 22s");
+  assert.equal(formatDuration(5_000), "1h 23m");
+});
