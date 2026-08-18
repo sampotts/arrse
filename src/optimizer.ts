@@ -31,7 +31,9 @@ export function ffmpegArgs(source: string, output: string, videoStreamIndex: num
     "-map_chapters", "0",
     "-c", "copy",
     `-c:${videoStreamIndex}`, "hevc_qsv",
-    `-global_quality:${videoStreamIndex}`, String(config.qsvQuality),
+    // -q selects QSV's CQP rate-control mode. Unlike ICQ (selected by
+    // -global_quality), CQP is available on older Intel HEVC encoders too.
+    `-q:${videoStreamIndex}`, String(config.qsvQuality),
     `-preset:${videoStreamIndex}`, config.qsvPreset,
     // Some Intel runtimes reject FFmpeg's automatic low-power negotiation.
     // Normal-power mode is supported more broadly and still uses hevc_qsv.

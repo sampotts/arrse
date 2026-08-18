@@ -12,7 +12,7 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - Only accepts files with exactly one non-artwork H.264 video stream.
 - Skips HEVC, AV1, PQ, HLG, Dolby Vision, HDR10+, and streams carrying HDR mastering metadata.
 - Maps every input stream. Audio, subtitle, attachment, and data streams are stream-copied; chapters and metadata are mapped from the source.
-- Uses QSV quality-based encoding at a high-quality default of 20 without scaling. Lower `QSV_QUALITY` values increase quality and file size.
+- Uses QSV constant-quantizer (CQP) encoding at a high-quality default of 20 without scaling. Lower `QSV_QUALITY` values increase quality and file size.
 - Writes the transcode to `/cache`, then validates it with `ffprobe`. Validation checks HEVC video, copied audio/subtitle/attachment codecs and counts, chapter count, and duration.
 - Rejects outputs whose resolution, display aspect ratio, frame rate, or SDR color signaling differs from the source.
 - Checks the source size and modification time again before replacement, preventing replacement if another program changed it during encoding.
@@ -57,7 +57,7 @@ docker exec arrse ffmpeg -hide_banner -encoders
 | `SCAN_INTERVAL_MINUTES` | `60` | Delay between scans; `0` runs once and exits |
 | `MIN_SAVINGS_PERCENT` | `15` | Minimum reduction required for replacement |
 | `QSV_DEVICE` | `/dev/dri/renderD128` | Intel render device |
-| `QSV_QUALITY` | `20` | QSV quality value (1–51); lower means higher quality and typically larger output |
+| `QSV_QUALITY` | `20` | QSV CQP quality value (1–51); lower means higher quality and typically larger output |
 | `QSV_PRESET` | `medium` | `hevc_qsv` preset |
 | `INPUT_PATHS` | required outside Compose | JSON array of absolute input paths to scan recursively; Compose sets this to `["/input"]` |
 | `CACHE_DIR` | `/cache` | Temporary transcode directory |
