@@ -5,7 +5,13 @@ import { StateStore } from "./state.js";
 import { HardwareEncoder } from "./types.js";
 
 let stopping = false;
-const stop = () => { stopping = true; log("INFO", "shutdown requested; waiting for active transcodes"); };
+const shutdown = new AbortController();
+const stop = () => {
+  if (stopping) return;
+  stopping = true;
+  log("INFO", "shutdown requested; cancelling active transcodes");
+  shutdown.abort();
+};
 process.once("SIGTERM", stop);
 process.once("SIGINT", stop);
 
@@ -37,12 +43,12 @@ async function main(): Promise<void> {
       try {
         log("INFO", "checking Intel QSV HEVC encoder", { device: config.qsvDevice });
         try {
-          await verifyQsv(config);
+          await verifyQsv(config, undefined, shutdown.signal);
           encoder = "qsv";
           log("INFO", "Intel QSV HEVC encoder ready", { device: config.qsvDevice });
         } catch (qsvError) {
           log("INFO", "QSV unavailable; checking Intel VAAPI HEVC fallback", { error: String(qsvError) });
-          await verifyVaapi(config);
+          await verifyVaapi(config, undefined, shutdown.signal);
           encoder = "vaapi";
           log("INFO", "Intel VAAPI HEVC encoder ready", { device: config.qsvDevice });
         }
@@ -54,7 +60,7 @@ async function main(): Promise<void> {
     }
     if (stopping) return;
   }
-  const optimizer = new Optimizer(config, state, encoder);
+  const optimizer = new Optimizer(config, state, encoder, undefined, shutdown.signal);
   do {
     await optimizer.scanOnce();
     if (stopping || config.scanIntervalMinutes === 0) break;

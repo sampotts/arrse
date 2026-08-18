@@ -15,4 +15,4 @@ services:
       - ${INPUT_PATH:?set INPUT_PATH}:/input
       - ${CONFIG_PATH:-./config}:/config
       - ${CACHE_PATH:-./cache}:/cache
-    stop_grace_period: 30m
+    stop_grace_period: 30s

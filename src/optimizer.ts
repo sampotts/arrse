@@ -39,8 +39,8 @@ export function qsvSelfTestArgs(config: Config): string[] {
   ];
 }
 
-export async function verifyQsv(config: Config, runner: Runner = run): Promise<void> {
-  await runner("ffmpeg", qsvSelfTestArgs(config));
+export async function verifyQsv(config: Config, runner: Runner = run, signal?: AbortSignal): Promise<void> {
+  await runner("ffmpeg", qsvSelfTestArgs(config), signal);
 }
 
 export function vaapiSelfTestArgs(config: Config): string[] {
@@ -56,8 +56,8 @@ export function vaapiSelfTestArgs(config: Config): string[] {
   ];
 }
 
-export async function verifyVaapi(config: Config, runner: Runner = run): Promise<void> {
-  await runner("ffmpeg", vaapiSelfTestArgs(config));
+export async function verifyVaapi(config: Config, runner: Runner = run, signal?: AbortSignal): Promise<void> {
+  await runner("ffmpeg", vaapiSelfTestArgs(config), signal);
 }
 
 async function removeIfPresent(file: string): Promise<void> {
@@ -113,10 +113,12 @@ export class Optimizer {
     private readonly config: Config,
     private readonly state: StateStore,
     private readonly encoder: HardwareEncoder,
-    private readonly runner: Runner = run
+    private readonly runner: Runner = run,
+    private readonly signal?: AbortSignal
   ) {}
 
   async processFile(source: string): Promise<void> {
+    if (this.signal?.aborted) return;
     if (this.active.has(source)) {
       log("SKIP", "file already has an active job", { file: source });
       return;
@@ -144,7 +146,9 @@ export class Optimizer {
       const digest = createHash("sha256").update(source).digest("hex").slice(0, 16);
       cacheOutput = path.join(this.config.cacheDir, `${digest}-${randomUUID()}${path.extname(source)}`);
       log("TRANSCODE", "starting Intel hardware HEVC transcode", { file: source, output: cacheOutput, encoder: this.encoder });
-      await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput, check.videoStream.index, this.config, this.encoder));
+      await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput, check.videoStream.index, this.config, this.encoder), this.signal);
+
+      if (this.signal?.aborted) throw this.signal.reason;
 
       log("VALIDATE", "validating cached output with ffprobe", { file: source });
       const output = await probe(cacheOutput);
@@ -178,8 +182,12 @@ export class Optimizer {
         log("ERROR", "Arr notification failed after successful replacement", { file: source, error: String(error) });
       }
     } catch (error) {
-      log("ERROR", "job failed; original was left in place unless SAVED was already logged", { file: source, error: String(error) });
-      try { await this.state.record(source, "error", String(error)); } catch { /* The source may have been renamed by Arr. */ }
+      if (this.signal?.aborted) {
+        log("INFO", "transcode cancelled during shutdown; original left in place", { file: source });
+      } else {
+        log("ERROR", "job failed; original was left in place unless SAVED was already logged", { file: source, error: String(error) });
+        try { await this.state.record(source, "error", String(error)); } catch { /* The source may have been renamed by Arr. */ }
+      }
     } finally {
       if (cacheOutput) await removeIfPresent(cacheOutput).catch((error) => log("ERROR", "could not clean cache output", { file: cacheOutput, error: String(error) }));
       this.active.delete(source);
@@ -201,7 +209,7 @@ export class Optimizer {
 
     let next = 0;
     const worker = async () => {
-      while (next < queue.length) {
+      while (!this.signal?.aborted && next < queue.length) {
         const index = next++;
         await this.processFile(queue[index]);
       }
