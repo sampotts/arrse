@@ -60,11 +60,39 @@ function duration(result: ProbeResult): number {
   return Math.max(0, ...result.streams.map((stream) => Number(stream.duration) || 0));
 }
 
+function frameRate(value?: string): number | undefined {
+  if (!value) return undefined;
+  const [numerator, denominator = 1] = value.split("/").map(Number);
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) return undefined;
+  return numerator / denominator;
+}
+
 export function validateTranscode(input: ProbeResult, output: ProbeResult): string[] {
   const errors: string[] = [];
   const outputVideos = contentVideoStreams(output);
   if (outputVideos.length !== 1 || outputVideos[0].codec_name !== "hevc") {
     errors.push("output must contain exactly one HEVC content video stream");
+  }
+
+  const inputVideo = contentVideoStreams(input)[0];
+  const outputVideo = outputVideos[0];
+  if (inputVideo && outputVideo) {
+    if (inputVideo.width !== outputVideo.width || inputVideo.height !== outputVideo.height) {
+      errors.push(`video dimensions changed (${inputVideo.width}x${inputVideo.height} to ${outputVideo.width}x${outputVideo.height})`);
+    }
+    if (inputVideo.display_aspect_ratio && inputVideo.display_aspect_ratio !== outputVideo.display_aspect_ratio) {
+      errors.push(`display aspect ratio changed (${inputVideo.display_aspect_ratio} to ${outputVideo.display_aspect_ratio ?? "unknown"})`);
+    }
+    const beforeRate = frameRate(inputVideo.avg_frame_rate);
+    const afterRate = frameRate(outputVideo.avg_frame_rate);
+    if (beforeRate !== undefined && (afterRate === undefined || Math.abs(beforeRate - afterRate) > 0.001)) {
+      errors.push(`frame rate changed (${inputVideo.avg_frame_rate} to ${outputVideo.avg_frame_rate ?? "unknown"})`);
+    }
+    for (const field of ["color_primaries", "color_transfer", "color_space"] as const) {
+      if (inputVideo[field] && inputVideo[field] !== outputVideo[field]) {
+        errors.push(`${field} changed (${inputVideo[field]} to ${outputVideo[field] ?? "unknown"})`);
+      }
+    }
   }
 
   for (const type of ["audio", "subtitle", "attachment"] as const) {

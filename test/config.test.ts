@@ -14,6 +14,7 @@ test("safe defaults include dry-run and two workers", () => {
     assert.equal(config.workers, 2);
     assert.deepEqual(config.inputPaths, ["/input"]);
     assert.equal(config.minSavingsPercent, 15);
+    assert.equal(config.qsvQuality, 20);
   } finally {
     for (const key of managed) {
       if (saved[key] === undefined) delete process.env[key];

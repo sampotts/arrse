@@ -54,7 +54,7 @@ export function loadConfig(): Config {
     dryRun: booleanEnv("DRY_RUN", true),
     scanIntervalMinutes: integerEnv("SCAN_INTERVAL_MINUTES", 60, 0, 10080),
     minSavingsPercent: integerEnv("MIN_SAVINGS_PERCENT", 15, 1, 99),
-    qsvQuality: integerEnv("QSV_QUALITY", 23, 1, 51),
+    qsvQuality: integerEnv("QSV_QUALITY", 20, 1, 51),
     qsvPreset: process.env.QSV_PRESET ?? "medium",
     qsvDevice: process.env.QSV_DEVICE ?? "/dev/dri/renderD128",
     sonarr: apiConfig("SONARR"),

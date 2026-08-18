@@ -29,6 +29,11 @@ export interface ProbeStream {
   color_primaries?: string;
   color_space?: string;
   pix_fmt?: string;
+  width?: number;
+  height?: number;
+  sample_aspect_ratio?: string;
+  display_aspect_ratio?: string;
+  avg_frame_rate?: string;
   disposition?: Record<string, number>;
   tags?: Record<string, string>;
   side_data_list?: Array<Record<string, unknown>>;

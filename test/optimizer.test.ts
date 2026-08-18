@@ -6,7 +6,7 @@ import { Config } from "../src/types.js";
 const config: Config = {
   inputPaths: ["/input"], cacheDir: "/cache", configDir: "/config",
   workers: 2, dryRun: true, scanIntervalMinutes: 60, minSavingsPercent: 15,
-  qsvQuality: 23, qsvPreset: "medium", qsvDevice: "/dev/dri/renderD128"
+  qsvQuality: 20, qsvPreset: "medium", qsvDevice: "/dev/dri/renderD128"
 };
 
 test("ffmpeg uses QSV HEVC for only the content video and copies everything else", () => {

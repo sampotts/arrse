@@ -7,6 +7,13 @@ const video = (overrides: Partial<ProbeStream> = {}): ProbeStream => ({
   index: 0,
   codec_type: "video",
   codec_name: "h264",
+  width: 1920,
+  height: 1080,
+  display_aspect_ratio: "16:9",
+  avg_frame_rate: "24000/1001",
+  color_primaries: "bt709",
+  color_transfer: "bt709",
+  color_space: "bt709",
   disposition: { attached_pic: 0 },
   ...overrides
 });
@@ -48,4 +55,18 @@ test("validates codec, copied streams, chapters and duration", () => {
   output.chapters = [];
   output.format!.duration = "90";
   assert.equal(validateTranscode(input, output).length, 3);
+});
+
+test("rejects changes to core picture characteristics", () => {
+  const input = media(video());
+  const output = media(video({
+    codec_name: "hevc",
+    width: 1280,
+    avg_frame_rate: "25/1",
+    color_space: "bt2020nc"
+  }));
+  const errors = validateTranscode(input, output);
+  assert.ok(errors.some((error) => error.includes("dimensions changed")));
+  assert.ok(errors.some((error) => error.includes("frame rate changed")));
+  assert.ok(errors.some((error) => error.includes("color_space changed")));
 });
