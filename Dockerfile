@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim AS build
+FROM node:24-bookworm-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -6,7 +6,7 @@ COPY tsconfig.json ./
 COPY src ./src
 RUN npm run build
 
-FROM node:22-bookworm-slim
+FROM node:24-bookworm-slim
 LABEL org.opencontainers.image.title="Arrse" \
       org.opencontainers.image.description="Intel Quick Sync media optimizer for Sonarr and Radarr" \
       org.opencontainers.image.source="https://github.com/sampotts/arrse"

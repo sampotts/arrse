@@ -81,7 +81,7 @@ The URLs must be reachable from this container. With a shared Compose network th
 
 ## Development and tests
 
-Requires Node.js 22 or newer.
+Requires Node.js 24 LTS or newer.
 
 ```sh
 npm ci
