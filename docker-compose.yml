@@ -1,9 +1,12 @@
 services:
   arrse:
-    build: .
+    image: ${ARRSE_IMAGE:-ghcr.io/sampotts/arrse:latest}
+    pull_policy: always
     container_name: arrse
     restart: unless-stopped
-    env_file: .env
+    env_file:
+      - path: .env
+        required: false
     devices:
       - /dev/dri:/dev/dri
     volumes:

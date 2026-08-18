@@ -26,10 +26,11 @@ The service logs status labels including `SCAN`, `SKIP`, `TRANSCODE`, `VALIDATE`
 1. Confirm the Intel GPU is available on the host as `/dev/dri/renderD128`.
 2. Copy `.env.example` to `.env`. Leave `DRY_RUN=true` initially.
 3. Set `TV_PATH`, `MOVIES_PATH`, `CONFIG_PATH`, and `CACHE_PATH` in `.env`, or edit the volume paths in `docker-compose.yml`. The TV and Movies mounts must be writable for replacement and rename.
-4. Build and start:
+4. Pull and start:
 
    ```sh
-   docker compose up -d --build
+   docker compose pull
+   docker compose up -d
    docker compose logs -f arrse
    ```
 
@@ -48,6 +49,7 @@ docker exec arrse ffmpeg -hide_banner -encoders
 
 | Variable | Default | Meaning |
 |---|---:|---|
+| `ARRSE_IMAGE` | `ghcr.io/sampotts/arrse:latest` | Container image; pin a version for reproducible deployments |
 | `DRY_RUN` | `true` | Report eligible files without transcoding |
 | `WORKERS` | `2` | Maximum concurrent transcodes (1–32) |
 | `SCAN_INTERVAL_MINUTES` | `60` | Delay between scans; `0` runs once and exits |
@@ -77,6 +79,27 @@ npm test
 ```
 
 Tests cover safe configuration defaults, HDR/codec eligibility, output validation, and the FFmpeg stream-mapping/QSV command.
+
+Build and run the local source instead of pulling the published image with the Compose override:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+```
+
+## Publishing
+
+GitHub Actions tests every push to `main`, then builds and publishes a Linux AMD64 image to `ghcr.io/sampotts/arrse`. A push to `main` updates `latest` and adds a commit tag such as `sha-a1b2c3d`.
+
+Create a stable release by tagging the tested commit:
+
+```sh
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+That publishes `1.0.0`, `1.0`, `latest`, and a commit-specific tag. The workflow also supports a manual run from GitHub's Actions page. Container provenance is attached to each published image.
+
+GitHub Container Registry packages are private when first created. After the first successful workflow run, open the `arrse` package settings on GitHub and change its visibility to public so Compose can pull it without authentication. Private installations must first run `docker login ghcr.io` with a token that has `read:packages` permission.
 
 ## Recovery notes
 
