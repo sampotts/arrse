@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createMilestoneProgress, formatDuration, ProgressMilestone } from "../src/progress.js";
+import { createMilestoneProgress, formatDuration, formatProgressMessage, ProgressMilestone } from "../src/progress.js";
 
 test("reports 25/50/75/100 milestones with speed-based ETAs", () => {
   const milestones: ProgressMilestone[] = [];
@@ -24,6 +24,10 @@ test("handles progress records split across output chunks", () => {
   progress("out_time_us=5000");
   progress("0000\nspeed=1.0x\nprogress=continue\n");
   assert.deepEqual(milestones.map(({ percent }) => percent), [25, 50]);
+});
+
+test("formats the concise progress log message", () => {
+  assert.equal(formatProgressMessage(50, 434, "/path/to/file.mp4"), `50% (ETA 7m 14s) "/path/to/file.mp4"`);
 });
 
 test("formats human-readable ETAs", () => {

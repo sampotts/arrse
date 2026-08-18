@@ -4,6 +4,10 @@ export interface ProgressMilestone {
   speed?: number;
 }
 
+export function formatProgressMessage(percent: number, etaSeconds: number, source: string): string {
+  return `${percent}% (ETA ${formatDuration(etaSeconds)}) ${JSON.stringify(source)}`;
+}
+
 export function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "unknown";
   const rounded = Math.round(seconds);

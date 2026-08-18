@@ -4,7 +4,7 @@ import path from "node:path";
 import { notifyArr } from "./arr.js";
 import { log } from "./logger.js";
 import { eligibility, mediaDuration, probe, validateTranscode } from "./probe.js";
-import { createMilestoneProgress, formatDuration } from "./progress.js";
+import { createMilestoneProgress, formatProgressMessage } from "./progress.js";
 import { run } from "./process.js";
 import { safelyReplace } from "./replace.js";
 import { scan } from "./scan.js";
@@ -149,13 +149,8 @@ export class Optimizer {
       const digest = createHash("sha256").update(source).digest("hex").slice(0, 16);
       cacheOutput = path.join(this.config.cacheDir, `${digest}-${randomUUID()}${path.extname(source)}`);
       log("TRANSCODE", "starting Intel hardware HEVC transcode", { file: source, output: cacheOutput, encoder: this.encoder });
-      const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds, speed }) => {
-        log("PROGRESS", `${percent}%`, {
-          file: source,
-          percent,
-          speed: speed ? `${speed.toFixed(2)}x` : "unknown",
-          eta: formatDuration(etaSeconds)
-        });
+      const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds }) => {
+        log("PROGRESS", formatProgressMessage(percent, etaSeconds, source));
       });
       await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput, check.videoStream.index, this.config, this.encoder), this.signal, reportProgress);
 
