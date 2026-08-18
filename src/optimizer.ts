@@ -12,6 +12,22 @@ import { Config } from "./types.js";
 
 export type Runner = typeof run;
 
+export function qsvSelfTestArgs(config: Config): string[] {
+  return [
+    "-hide_banner", "-nostdin", "-v", "error",
+    "-init_hw_device", `qsv=qs:${config.qsvDevice}`,
+    "-f", "lavfi", "-i", "color=c=black:s=1280x720:r=24",
+    "-frames:v", "1", "-an",
+    "-c:v", "hevc_qsv",
+    "-q:v", String(config.qsvQuality),
+    "-f", "null", "-"
+  ];
+}
+
+export async function verifyQsv(config: Config, runner: Runner = run): Promise<void> {
+  await runner("ffmpeg", qsvSelfTestArgs(config));
+}
+
 async function removeIfPresent(file: string): Promise<void> {
   try { await unlink(file); } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;

@@ -12,7 +12,7 @@ LABEL org.opencontainers.image.title="Arrse" \
       org.opencontainers.image.source="https://github.com/sampotts/arrse"
 ENV NODE_ENV=production
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg intel-media-va-driver i965-va-driver vainfo ca-certificates \
+    && apt-get install -y --no-install-recommends ffmpeg intel-media-va-driver i965-va-driver libmfx-gen1.2 vainfo ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=build /app/dist/src ./dist/src

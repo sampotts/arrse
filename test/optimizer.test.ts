@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ffmpegArgs } from "../src/optimizer.js";
+import { ffmpegArgs, qsvSelfTestArgs } from "../src/optimizer.js";
 import { Config } from "../src/types.js";
 
 const config: Config = {
@@ -21,4 +21,12 @@ test("ffmpeg uses QSV HEVC for only the content video and copies everything else
   assert.ok(!args.some((arg) => arg.startsWith("-low_power")));
   assert.ok(!args.includes("-hwaccel"));
   assert.match(args.join(" "), /renderD128/);
+});
+
+test("QSV self-test performs a one-frame HEVC hardware encode", () => {
+  const args = qsvSelfTestArgs(config);
+  assert.equal(args[args.indexOf("-c:v") + 1], "hevc_qsv");
+  assert.equal(args[args.indexOf("-frames:v") + 1], "1");
+  assert.equal(args[args.indexOf("-q:v") + 1], "20");
+  assert.equal(args.at(-1), "-");
 });

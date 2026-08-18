@@ -1,6 +1,6 @@
 import { loadConfig } from "./config.js";
 import { log } from "./logger.js";
-import { Optimizer } from "./optimizer.js";
+import { Optimizer, verifyQsv } from "./optimizer.js";
 import { StateStore } from "./state.js";
 
 let stopping = false;
@@ -19,6 +19,11 @@ async function main(): Promise<void> {
     dryRun: config.dryRun,
     scanIntervalMinutes: config.scanIntervalMinutes
   });
+  if (!config.dryRun) {
+    log("INFO", "checking Intel QSV HEVC encoder", { device: config.qsvDevice });
+    await verifyQsv(config);
+    log("INFO", "Intel QSV HEVC encoder ready", { device: config.qsvDevice });
+  }
   do {
     await optimizer.scanOnce();
     if (stopping || config.scanIntervalMinutes === 0) break;
