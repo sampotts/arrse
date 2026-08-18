@@ -8,7 +8,7 @@ import { run } from "./process.js";
 import { safelyReplace } from "./replace.js";
 import { scan } from "./scan.js";
 import { StateStore } from "./state.js";
-import { Config } from "./types.js";
+import { Config, HardwareEncoder } from "./types.js";
 
 export type Runner = typeof run;
 
@@ -29,28 +29,60 @@ export async function verifyQsv(config: Config, runner: Runner = run): Promise<v
   await runner("ffmpeg", qsvSelfTestArgs(config));
 }
 
+export function vaapiSelfTestArgs(config: Config): string[] {
+  return [
+    "-hide_banner", "-nostdin", "-v", "error",
+    "-vaapi_device", config.qsvDevice,
+    "-f", "lavfi", "-i", "color=c=black:s=1280x720:r=24",
+    "-frames:v", "1", "-an",
+    "-vf", "format=nv12,hwupload",
+    "-c:v", "hevc_vaapi",
+    "-qp:v", String(config.qsvQuality),
+    "-f", "null", "-"
+  ];
+}
+
+export async function verifyVaapi(config: Config, runner: Runner = run): Promise<void> {
+  await runner("ffmpeg", vaapiSelfTestArgs(config));
+}
+
 async function removeIfPresent(file: string): Promise<void> {
   try { await unlink(file); } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
 }
 
-export function ffmpegArgs(source: string, output: string, videoStreamIndex: number, config: Config): string[] {
+export function ffmpegArgs(
+  source: string,
+  output: string,
+  videoStreamIndex: number,
+  config: Config,
+  encoder: HardwareEncoder = "qsv"
+): string[] {
+  const deviceArgs = encoder === "qsv"
+    ? ["-init_hw_device", `qsv=qs:${config.qsvDevice}`]
+    : ["-vaapi_device", config.qsvDevice];
+  const encoderArgs = encoder === "qsv"
+    ? [
+        `-c:${videoStreamIndex}`, "hevc_qsv",
+        `-q:${videoStreamIndex}`, String(config.qsvQuality),
+        `-preset:${videoStreamIndex}`, config.qsvPreset,
+        `-low_power:${videoStreamIndex}`, "0"
+      ]
+    : [
+        `-filter:${videoStreamIndex}`, "format=nv12,hwupload",
+        `-c:${videoStreamIndex}`, "hevc_vaapi",
+        `-qp:${videoStreamIndex}`, String(config.qsvQuality)
+      ];
   return [
     "-hide_banner", "-nostdin", "-y",
-    "-init_hw_device", `qsv=qs:${config.qsvDevice}`,
+    ...deviceArgs,
     "-i", source,
     "-map", "0",
     "-map_metadata", "0",
     "-map_chapters", "0",
     "-c", "copy",
-    `-c:${videoStreamIndex}`, "hevc_qsv",
-    // -q selects QSV's CQP rate-control mode. Unlike ICQ (selected by
-    // -global_quality), CQP is available on older Intel HEVC encoders too.
-    `-q:${videoStreamIndex}`, String(config.qsvQuality),
-    `-preset:${videoStreamIndex}`, config.qsvPreset,
-    // Some Intel generations cannot use the VDEnc/low-power HEVC path.
-    `-low_power:${videoStreamIndex}`, "0",
+    ...encoderArgs,
     "-max_muxing_queue_size", "4096",
     output
   ];
@@ -59,7 +91,12 @@ export function ffmpegArgs(source: string, output: string, videoStreamIndex: num
 export class Optimizer {
   private readonly active = new Set<string>();
 
-  constructor(private readonly config: Config, private readonly state: StateStore, private readonly runner: Runner = run) {}
+  constructor(
+    private readonly config: Config,
+    private readonly state: StateStore,
+    private readonly encoder: HardwareEncoder,
+    private readonly runner: Runner = run
+  ) {}
 
   async processFile(source: string): Promise<void> {
     if (this.active.has(source)) {
@@ -88,8 +125,8 @@ export class Optimizer {
 
       const digest = createHash("sha256").update(source).digest("hex").slice(0, 16);
       cacheOutput = path.join(this.config.cacheDir, `${digest}-${randomUUID()}${path.extname(source)}`);
-      log("TRANSCODE", "starting Intel QSV HEVC transcode", { file: source, output: cacheOutput });
-      await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput, check.videoStream.index, this.config));
+      log("TRANSCODE", "starting Intel hardware HEVC transcode", { file: source, output: cacheOutput, encoder: this.encoder });
+      await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput, check.videoStream.index, this.config, this.encoder));
 
       log("VALIDATE", "validating cached output with ffprobe", { file: source });
       const output = await probe(cacheOutput);

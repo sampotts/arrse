@@ -8,7 +8,7 @@ RUN npm run build
 
 FROM node:24-trixie-slim
 LABEL org.opencontainers.image.title="Arrse" \
-      org.opencontainers.image.description="Intel Quick Sync media optimizer for Sonarr and Radarr" \
+      org.opencontainers.image.description="Intel hardware media optimizer for Sonarr and Radarr" \
       org.opencontainers.image.source="https://github.com/sampotts/arrse"
 ENV NODE_ENV=production
 RUN apt-get update \

@@ -1,6 +1,6 @@
 # Arrse
 
-A deliberately small TypeScript service for Sonarr and Radarr. Arrse scans one or more configured media roots, converts eligible H.264 SDR video to HEVC with Intel Quick Sync, and keeps the original unless the validated result is at least 15% smaller.
+A deliberately small TypeScript service for Sonarr and Radarr. Arrse scans one or more configured media roots, converts eligible H.264 SDR video to HEVC with Intel hardware acceleration, and keeps the original unless the validated result is at least 15% smaller.
 
 All application and test source is TypeScript under `src/` and `test/`. The Docker build runs `tsc` and ships only the compiled JavaScript in `dist/`; there is no hand-written JavaScript application source.
 
@@ -12,8 +12,9 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - Only accepts files with exactly one non-artwork H.264 video stream.
 - Skips HEVC, AV1, PQ, HLG, Dolby Vision, HDR10+, and streams carrying HDR mastering metadata.
 - Maps every input stream. Audio, subtitle, attachment, and data streams are stream-copied; chapters and metadata are mapped from the source.
-- Uses QSV constant-quantizer (CQP) encoding at a high-quality default of 20 without scaling. Lower `QSV_QUALITY` values increase quality and file size.
-- Runs a one-frame HEVC QSV self-test before scanning when `DRY_RUN=false`. If it fails, scanning remains paused and the test retries once per minute without restarting the container.
+- Prefers `hevc_qsv` and automatically falls back to `hevc_vaapi` when the Intel QSV/oneVPL path is incompatible. Both use the Intel GPU's hardware HEVC encoder.
+- Uses constant-quantizer encoding at a high-quality default of 20 without scaling. Lower `QSV_QUALITY` values increase quality and file size.
+- Runs one-frame hardware encoder self-tests before scanning when `DRY_RUN=false`. If both backends fail, scanning remains paused and the tests retry once per minute without restarting the container.
 - Writes the transcode to `/cache`, then validates it with `ffprobe`. Validation checks HEVC video, copied audio/subtitle/attachment codecs and counts, chapter count, and duration.
 - Rejects outputs whose resolution, display aspect ratio, frame rate, or SDR color signaling differs from the source.
 - Checks the source size and modification time again before replacement, preventing replacement if another program changed it during encoding.
@@ -58,8 +59,8 @@ docker exec arrse ffmpeg -hide_banner -encoders
 | `SCAN_INTERVAL_MINUTES` | `60` | Delay between scans; `0` runs once and exits |
 | `MIN_SAVINGS_PERCENT` | `15` | Minimum reduction required for replacement |
 | `QSV_DEVICE` | `/dev/dri/renderD128` | Intel render device |
-| `QSV_QUALITY` | `20` | QSV CQP quality value (1–51); lower means higher quality and typically larger output |
-| `QSV_PRESET` | `medium` | `hevc_qsv` preset |
+| `QSV_QUALITY` | `20` | QSV CQP / VAAPI QP quality value (1–51); lower means higher quality and typically larger output |
+| `QSV_PRESET` | `medium` | `hevc_qsv` preset; unused by the VAAPI fallback |
 | `INPUT_PATHS` | required outside Compose | JSON array of absolute input paths to scan recursively; Compose sets this to `["/input"]` |
 | `CACHE_DIR` | `/cache` | Temporary transcode directory |
 | `CONFIG_DIR` | `/config` | Persistent state directory |

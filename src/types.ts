@@ -13,6 +13,8 @@ export interface Config {
   radarr?: ApiConfig;
 }
 
+export type HardwareEncoder = "qsv" | "vaapi";
+
 export interface ApiConfig {
   url: string;
   apiKey: string;

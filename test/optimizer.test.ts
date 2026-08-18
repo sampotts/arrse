@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ffmpegArgs, qsvSelfTestArgs } from "../src/optimizer.js";
+import { ffmpegArgs, qsvSelfTestArgs, vaapiSelfTestArgs } from "../src/optimizer.js";
 import { Config } from "../src/types.js";
 
 const config: Config = {
@@ -30,4 +30,20 @@ test("QSV self-test performs a one-frame HEVC hardware encode", () => {
   assert.equal(args[args.indexOf("-q:v") + 1], "20");
   assert.equal(args[args.indexOf("-low_power:v") + 1], "0");
   assert.equal(args.at(-1), "-");
+});
+
+test("VAAPI fallback self-test performs a one-frame HEVC hardware encode", () => {
+  const args = vaapiSelfTestArgs(config);
+  assert.equal(args[args.indexOf("-c:v") + 1], "hevc_vaapi");
+  assert.equal(args[args.indexOf("-vf") + 1], "format=nv12,hwupload");
+  assert.equal(args[args.indexOf("-qp:v") + 1], "20");
+});
+
+test("VAAPI fallback uploads only video and preserves the mapped streams", () => {
+  const args = ffmpegArgs("/media/show.mkv", "/cache/out.mkv", 2, config, "vaapi");
+  assert.equal(args[args.indexOf("-c:2") + 1], "hevc_vaapi");
+  assert.equal(args[args.indexOf("-filter:2") + 1], "format=nv12,hwupload");
+  assert.equal(args[args.indexOf("-qp:2") + 1], "20");
+  assert.ok(args.includes("copy"));
+  assert.ok(!args.includes("hevc_qsv"));
 });
