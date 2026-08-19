@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createMilestoneProgress, formatBytes, formatDuration, formatProgressMessage, ProgressMilestone } from "../src/progress.js";
+import { createMilestoneProgress, formatBytes, formatDuration, formatProgressMessage, formatSavedResult, formatSavingsDetail, formatSkippedResult, ProgressMilestone } from "../src/progress.js";
 
 test("reports 25/50/75/100 milestones with speed-based ETAs", () => {
   const milestones: ProgressMilestone[] = [];
@@ -34,6 +34,22 @@ test("formats the concise progress log message", () => {
 test("formats saved bytes without JSON", () => {
   assert.equal(formatBytes(2_340_000_000), "2.34GB");
   assert.equal(formatBytes(42_000_000), "42.00MB");
+});
+
+test("formats verified savings outcomes with emojis", () => {
+  assert.equal(
+    formatSavedResult(50, 2_340_000_000, "/path/to/file.mp4"),
+    `✅ Source replaced safely. Saved 50.00% (2.34GB) "/path/to/file.mp4"`
+  );
+  assert.equal(
+    formatSkippedResult(-156.67, 15, "/path/to/file.mp4"),
+    `⚠️ Output was 156.67% larger than the source; minimum saving is 15%. "/path/to/file.mp4"`
+  );
+  assert.equal(
+    formatSkippedResult(8.5, 15, "/path/to/file.mp4"),
+    `⚠️ Output saved 8.50%; minimum saving is 15%. "/path/to/file.mp4"`
+  );
+  assert.equal(formatSavingsDetail(-156.67), "156.67% larger");
 });
 
 test("formats human-readable ETAs", () => {

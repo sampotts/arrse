@@ -27,7 +27,7 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 
 The service logs status labels including `SCAN`, `SKIP`, `TRANSCODE`, `PROGRESS`, `VALIDATE`, `SAVED`, and `ERROR` as one-line plain-text records. During each transcode, `PROGRESS` is logged at 25%, 50%, 75%, and 100% with FFmpeg's current processing speed and an estimated time remaining.
 
-The ETA is an estimate based on the current encoding speed and becomes more representative as the job progresses.
+The ETA is an estimate based on the current encoding speed and becomes more representative as the job progresses. After validation, accepted replacements are marked with `✅` and outputs that miss the savings threshold are marked with `⚠️`.
 
 ## Docker setup
 

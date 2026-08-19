@@ -4,7 +4,7 @@ import path from "node:path";
 import { notifyArr } from "./arr.js";
 import { log, quote } from "./logger.js";
 import { eligibility, mediaDuration, probe, validateTranscode } from "./probe.js";
-import { createMilestoneProgress, formatBytes, formatProgressMessage } from "./progress.js";
+import { createMilestoneProgress, formatProgressMessage, formatSavedResult, formatSavingsDetail, formatSkippedResult } from "./progress.js";
 import { run } from "./process.js";
 import { safelyReplace } from "./replace.js";
 import { scan } from "./scan.js";
@@ -165,8 +165,8 @@ export class Optimizer {
       const outputStat = await stat(cacheOutput);
       const savingsPercent = ((sourceStat.size - outputStat.size) / sourceStat.size) * 100;
       if (savingsPercent < this.config.minSavingsPercent) {
-        log("SKIP", `Output saved ${savingsPercent.toFixed(2)}%, below the ${this.config.minSavingsPercent}% minimum ${quote(source)}`);
-        await this.state.record(source, "not-smaller", `${savingsPercent.toFixed(2)}% savings`);
+        log("SKIP", formatSkippedResult(savingsPercent, this.config.minSavingsPercent, source));
+        await this.state.record(source, "not-smaller", formatSavingsDetail(savingsPercent));
         return;
       }
 
@@ -176,7 +176,7 @@ export class Optimizer {
       }
       await safelyReplace(source, cacheOutput, input);
       await this.state.record(source, "saved", `${savingsPercent.toFixed(2)}% savings`);
-      log("SAVED", `Source replaced safely. Saved ${savingsPercent.toFixed(2)}% (${formatBytes(sourceStat.size - outputStat.size)}) ${quote(source)}`);
+      log("SAVED", formatSavedResult(savingsPercent, sourceStat.size - outputStat.size, source));
       try {
         await notifyArr(source, this.config.sonarr, this.config.radarr);
       } catch (error) {

@@ -22,6 +22,23 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(unit === 0 ? 0 : 2)}${units[unit]}`;
 }
 
+export function formatSkippedResult(savingsPercent: number, minimumPercent: number, source: string): string {
+  const result = savingsPercent < 0
+    ? `Output was ${Math.abs(savingsPercent).toFixed(2)}% larger than the source`
+    : `Output saved ${savingsPercent.toFixed(2)}%`;
+  return `⚠️ ${result}; minimum saving is ${minimumPercent}%. ${quote(source)}`;
+}
+
+export function formatSavedResult(savingsPercent: number, bytesSaved: number, source: string): string {
+  return `✅ Source replaced safely. Saved ${savingsPercent.toFixed(2)}% (${formatBytes(bytesSaved)}) ${quote(source)}`;
+}
+
+export function formatSavingsDetail(savingsPercent: number): string {
+  return savingsPercent < 0
+    ? `${Math.abs(savingsPercent).toFixed(2)}% larger`
+    : `${savingsPercent.toFixed(2)}% savings`;
+}
+
 export function formatDuration(seconds: number): string {
   if (!Number.isFinite(seconds) || seconds < 0) return "unknown";
   const rounded = Math.round(seconds);
