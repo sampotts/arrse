@@ -31,6 +31,11 @@ test("state suppresses only unchanged completed decisions", async () => {
     await state.load();
     await state.record(media, "not-smaller", "10% savings");
     assert.equal(state.isCurrent(media, initial.size, initial.mtimeMs), true);
+    assert.equal(state.isCurrent(media, initial.size, initial.mtimeMs, "v2:vaapi-qvbr"), false);
+
+    await state.record(media, "not-smaller", "10% savings", "v2:vaapi-qvbr");
+    assert.equal(state.isCurrent(media, initial.size, initial.mtimeMs, "v2:vaapi-qvbr"), true);
+    assert.equal(state.isCurrent(media, initial.size, initial.mtimeMs, "v2:vaapi-cqp"), false);
 
     await utimes(media, new Date(), new Date(initial.mtimeMs + 2_000));
     const changed = await import("node:fs/promises").then(({ stat }) => stat(media));

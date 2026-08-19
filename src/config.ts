@@ -46,6 +46,8 @@ export function loadConfig(): Config {
     throw new Error("INPUT_PATHS entries must be absolute paths");
   }
 
+  const minSavingsPercent = integerEnv("MIN_SAVINGS_PERCENT", 15, 1, 94);
+  const defaultTargetSavings = Math.max(20, minSavingsPercent + 5);
   return {
     inputPaths: normalizedInputPaths,
     cacheDir: process.env.CACHE_DIR ?? "/cache",
@@ -53,10 +55,10 @@ export function loadConfig(): Config {
     workers: integerEnv("WORKERS", 2, 1, 32),
     dryRun: booleanEnv("DRY_RUN", true),
     scanIntervalMinutes: integerEnv("SCAN_INTERVAL_MINUTES", 60, 0, 10080),
-    minSavingsPercent: integerEnv("MIN_SAVINGS_PERCENT", 15, 1, 99),
-    qsvQuality: integerEnv("QSV_QUALITY", 20, 1, 51),
-    qsvPreset: process.env.QSV_PRESET ?? "medium",
-    qsvDevice: process.env.QSV_DEVICE ?? "/dev/dri/renderD128",
+    minSavingsPercent,
+    targetSavingsPercent: integerEnv("TARGET_SAVINGS_PERCENT", defaultTargetSavings, minSavingsPercent, 99),
+    quality: integerEnv(process.env.QUALITY === undefined ? "QSV_QUALITY" : "QUALITY", 20, 1, 51),
+    device: process.env.INTEL_DEVICE ?? process.env.QSV_DEVICE ?? "/dev/dri/renderD128",
     sonarr: apiConfig("SONARR"),
     radarr: apiConfig("RADARR")
   };

@@ -6,14 +6,14 @@ export interface Config {
   dryRun: boolean;
   scanIntervalMinutes: number;
   minSavingsPercent: number;
-  qsvQuality: number;
-  qsvPreset: string;
-  qsvDevice: string;
+  targetSavingsPercent: number;
+  quality: number;
+  device: string;
   sonarr?: ApiConfig;
   radarr?: ApiConfig;
 }
 
-export type HardwareEncoder = "qsv" | "vaapi";
+export type HardwareEncoder = "vaapi-qvbr" | "vaapi-cqp";
 
 export interface ApiConfig {
   url: string;
@@ -27,6 +27,7 @@ export interface ProbeStream {
   codec_tag_string?: string;
   profile?: string;
   duration?: string;
+  bit_rate?: string;
   color_transfer?: string;
   color_primaries?: string;
   color_space?: string;
@@ -47,6 +48,7 @@ export interface ProbeResult {
   format?: {
     duration?: string;
     size?: string;
+    bit_rate?: string;
     format_name?: string;
     tags?: Record<string, string>;
   };
@@ -60,6 +62,7 @@ export interface StateEntry {
   outcome: StateOutcome;
   updatedAt: string;
   detail?: string;
+  profile?: string;
 }
 
 export interface StateFile {

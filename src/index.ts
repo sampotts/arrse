@@ -1,6 +1,6 @@
 import { loadConfig } from "./config.js";
 import { log, quote } from "./logger.js";
-import { cleanupOrphanedCacheFiles, Optimizer, verifyQsv, verifyVaapi } from "./optimizer.js";
+import { cleanupOrphanedCacheFiles, Optimizer, verifyVaapiCqp, verifyVaapiQvbr } from "./optimizer.js";
 import { StateStore } from "./state.js";
 import { HardwareEncoder } from "./types.js";
 
@@ -31,25 +31,25 @@ async function main(): Promise<void> {
   await state.load();
   const orphanedCacheFiles = await cleanupOrphanedCacheFiles(config.cacheDir);
   if (orphanedCacheFiles > 0) log("INFO", `Removed ${orphanedCacheFiles} orphaned cache output${orphanedCacheFiles === 1 ? "" : "s"}.`);
-  let encoder: HardwareEncoder = "qsv";
+  let encoder: HardwareEncoder = "vaapi-qvbr";
   log("INFO", `Arrse started. Input paths: ${config.inputPaths.map(quote).join(", ")}. Workers: ${config.workers}. Dry run: ${config.dryRun}. Scan interval: ${config.scanIntervalMinutes} minutes.`);
   if (!config.dryRun) {
     while (!stopping) {
       try {
-        log("INFO", `Checking Intel QSV HEVC encoder at ${quote(config.qsvDevice)}.`);
+        log("INFO", `Checking Intel VAAPI QVBR HEVC encoder at ${quote(config.device)}.`);
         try {
-          await verifyQsv(config, undefined, shutdown.signal);
-          encoder = "qsv";
-          log("INFO", `Intel QSV HEVC encoder ready at ${quote(config.qsvDevice)}.`);
-        } catch (qsvError) {
-          log("INFO", `QSV unavailable; checking Intel VAAPI HEVC fallback. Reason: ${String(qsvError)}`);
-          await verifyVaapi(config, undefined, shutdown.signal);
-          encoder = "vaapi";
-          log("INFO", `Intel VAAPI HEVC encoder ready at ${quote(config.qsvDevice)}.`);
+          await verifyVaapiQvbr(config, undefined, shutdown.signal);
+          encoder = "vaapi-qvbr";
+          log("INFO", `Intel VAAPI QVBR HEVC encoder ready at ${quote(config.device)}.`);
+        } catch (qvbrError) {
+          log("INFO", `VAAPI QVBR unavailable; checking CQP fallback. Reason: ${String(qvbrError)}`);
+          await verifyVaapiCqp(config, undefined, shutdown.signal);
+          encoder = "vaapi-cqp";
+          log("INFO", `Intel VAAPI CQP HEVC encoder ready at ${quote(config.device)}.`);
         }
         break;
       } catch (error) {
-        log("ERROR", `Intel hardware encoder self-tests failed; scanning paused and will retry in 60 seconds. Reason: ${String(error)}`);
+        log("ERROR", `Intel VAAPI encoder self-tests failed; scanning paused and will retry in 60 seconds. Reason: ${String(error)}`);
         await waitOrStop(60_000);
       }
     }

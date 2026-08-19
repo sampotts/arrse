@@ -12,12 +12,13 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - Only accepts files with exactly one non-artwork H.264 video stream.
 - Skips HEVC, AV1, PQ, HLG, Dolby Vision, HDR10+, and streams carrying HDR mastering metadata.
 - Maps every input stream. Audio, subtitle, attachment, and data streams are stream-copied; chapters and metadata are mapped from the source.
-- Prefers `hevc_qsv` and automatically falls back to `hevc_vaapi` when the Intel QSV/oneVPL path is incompatible. Both use the Intel GPU's hardware HEVC encoder.
-- The VAAPI fallback uses zero-copy hardware H.264 decoding and HEVC encoding to keep CPU usage low.
+- Uses zero-copy VAAPI hardware H.264 decoding and `hevc_vaapi` HEVC encoding on the Intel GPU.
+- Prefers QVBR rate control, targeting a useful whole-file reduction while using the quality setting as a quality bound. If the driver does not expose QVBR, Arrse automatically falls back to CQP.
+- Calculates each QVBR video bitrate from the source size, duration, and estimated bitrate of copied audio, subtitle, attachment, and data streams.
 - On startup, removes only abandoned temporary outputs matching Arrse's private cache filename format; unrelated `/cache` files are left alone.
-- Uses constant-quantizer encoding at a high-quality default of 20 without scaling. Lower `QSV_QUALITY` values increase quality and file size.
+- Uses a high-quality default of 20 without scaling. Lower `QUALITY` values increase quality and usually increase file size.
 - Ships checksum-pinned FFmpeg 9.0.1 built with Intel oneVPL and VAAPI support.
-- Runs one-frame hardware encoder self-tests before scanning when `DRY_RUN=false`. If both backends fail, scanning remains paused and the tests retry once per minute without restarting the container.
+- Runs hardware QVBR and CQP self-tests before scanning when `DRY_RUN=false`. If both modes fail, scanning remains paused and the tests retry once per minute without restarting the container.
 - Writes the transcode to `/cache`, then validates it with `ffprobe`. Validation checks HEVC video, copied audio/subtitle/attachment codecs and counts, chapter count, and duration.
 - Rejects outputs whose resolution, display aspect ratio, frame rate, or SDR color signaling differs from the source.
 - Checks the source size and modification time again before replacement, preventing replacement if another program changed it during encoding.
@@ -47,7 +48,15 @@ The ETA is an estimate based on the current encoding speed and becomes more repr
 
 The `/cache` mount should use fast storage with enough free space for every concurrent output. The `/config` mount must use persistent storage.
 
-The Debian FFmpeg package in the image includes QSV support and Intel media drivers. You can verify visibility with:
+On Intel platforms whose QVBR support depends on authenticated HuC firmware, enable HuC in the host's i915 module configuration and reboot:
+
+```text
+options i915 enable_guc=2
+```
+
+Verify it with `cat /sys/module/i915/parameters/enable_guc` and `dmesg | grep -i huc`. The latter should report that HuC is authenticated. Arrse remains usable in CQP mode if QVBR is unavailable.
+
+The image includes its own FFmpeg build and Intel media drivers. You can verify visibility with:
 
 ```sh
 docker exec arrse vainfo --display drm --device /dev/dri/renderD128
@@ -63,9 +72,10 @@ docker exec arrse ffmpeg -hide_banner -encoders
 | `WORKERS` | `2` | Maximum concurrent transcodes (1–32) |
 | `SCAN_INTERVAL_MINUTES` | `60` | Delay between scans; `0` runs once and exits |
 | `MIN_SAVINGS_PERCENT` | `15` | Minimum reduction required for replacement |
-| `QSV_DEVICE` | `/dev/dri/renderD128` | Intel render device |
-| `QSV_QUALITY` | `20` | QSV CQP / VAAPI QP quality value (1–51); lower means higher quality and typically larger output |
-| `QSV_PRESET` | `medium` | `hevc_qsv` preset; unused by the VAAPI fallback |
+| `TARGET_SAVINGS_PERCENT` | `20` | Whole-file reduction QVBR targets when choosing its video bitrate; must be at least `MIN_SAVINGS_PERCENT` |
+| `QUALITY` | `20` | QVBR quality bound or CQP quantizer (1–51); lower means higher quality and typically larger output |
+| `INTEL_DEVICE` | `/dev/dri/renderD128` | Intel render device |
+| `QSV_QUALITY`, `QSV_DEVICE` | unset | Deprecated aliases for `QUALITY` and `INTEL_DEVICE` |
 | `INPUT_PATHS` | required outside Compose | JSON array of absolute input paths to scan recursively; Compose sets this to `["/input"]` |
 | `CACHE_DIR` | `/cache` | Temporary transcode directory |
 | `CONFIG_DIR` | `/config` | Persistent state directory |
@@ -79,6 +89,8 @@ INPUT_PATH=/host/path/to/library
 ```
 
 Compose mounts that directory at `/input`, and Arrse scans it recursively. There is no output-path setting: temporary output uses `/cache`, and a validated, sufficiently smaller result atomically replaces its source. This is equivalent to an output of `.` for every source file.
+
+The QVBR target defaults to 20%, giving the final 15% replacement threshold some headroom. Changing `QUALITY` changes the quality constraint, while `TARGET_SAVINGS_PERCENT` controls the intended size reduction. Existing state entries from an older encoding profile are automatically reconsidered once; files already converted to HEVC remain ineligible.
 
 For advanced deployments with inputs on unrelated host filesystems, add one volume mapping per input and override `INPUT_PATHS` with their in-container paths, for example `INPUT_PATHS=["/input-a","/input-b"]`. Arrse treats every entry identically.
 
@@ -97,7 +109,7 @@ npm ci
 npm test
 ```
 
-Tests cover safe configuration defaults, HDR/codec eligibility, output validation, and the FFmpeg stream-mapping/QSV command.
+Tests cover safe configuration defaults, HDR/codec eligibility, output validation, state migration, and the FFmpeg VAAPI QVBR/CQP commands.
 
 Build and run the local source instead of pulling the published image with the Compose override:
 

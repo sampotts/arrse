@@ -26,14 +26,14 @@ export class StateStore {
     }
   }
 
-  isCurrent(file: string, size: number, mtimeMs: number): boolean {
+  isCurrent(file: string, size: number, mtimeMs: number, profile?: string): boolean {
     const entry = this.data.files[file];
-    return Boolean(entry && entry.size === size && Math.trunc(entry.mtimeMs) === Math.trunc(mtimeMs) && entry.outcome !== "error" && entry.outcome !== "dry-run");
+    return Boolean(entry && entry.size === size && Math.trunc(entry.mtimeMs) === Math.trunc(mtimeMs) && entry.outcome !== "error" && entry.outcome !== "dry-run" && (profile === undefined || entry.profile === profile));
   }
 
-  async record(file: string, outcome: StateOutcome, detail?: string): Promise<void> {
+  async record(file: string, outcome: StateOutcome, detail?: string, profile?: string): Promise<void> {
     const info = await stat(file);
-    const entry: StateEntry = { size: info.size, mtimeMs: info.mtimeMs, outcome, updatedAt: new Date().toISOString(), detail };
+    const entry: StateEntry = { size: info.size, mtimeMs: info.mtimeMs, outcome, updatedAt: new Date().toISOString(), detail, profile };
     this.data.files[file] = entry;
     this.writeChain = this.writeChain.then(async () => {
       const temp = `${this.file}.tmp`;

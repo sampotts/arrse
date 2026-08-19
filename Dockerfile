@@ -45,6 +45,8 @@ RUN apt-get update \
       ca-certificates i965-va-driver intel-media-va-driver libdrm2 libmfx-gen1.2 libva-drm2 libva2 libvpl2 vainfo \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=ffmpeg-build /opt/ffmpeg /opt/ffmpeg
+RUN ln -s /opt/ffmpeg/bin/ffmpeg /usr/local/bin/ffmpeg \
+    && ln -s /opt/ffmpeg/bin/ffprobe /usr/local/bin/ffprobe
 ENV PATH="/opt/ffmpeg/bin:${PATH}" \
     LD_LIBRARY_PATH="/opt/ffmpeg/lib"
 WORKDIR /app

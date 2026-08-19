@@ -2,7 +2,7 @@
   "name": "arrse",
   "version": "1.0.0",
   "private": true,
-  "description": "A TypeScript Intel Quick Sync media optimizer for Sonarr and Radarr",
+  "description": "A TypeScript Intel hardware media optimizer for Sonarr and Radarr",
   "type": "module",
   "main": "dist/src/index.js",
   "scripts": {
