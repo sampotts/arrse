@@ -16,6 +16,7 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - The VAAPI fallback uses zero-copy hardware H.264 decoding and HEVC encoding to keep CPU usage low.
 - On startup, removes only abandoned temporary outputs matching Arrse's private cache filename format; unrelated `/cache` files are left alone.
 - Uses constant-quantizer encoding at a high-quality default of 20 without scaling. Lower `QSV_QUALITY` values increase quality and file size.
+- Ships checksum-pinned FFmpeg 9.0.1 built with Intel oneVPL and VAAPI support.
 - Runs one-frame hardware encoder self-tests before scanning when `DRY_RUN=false`. If both backends fail, scanning remains paused and the tests retry once per minute without restarting the container.
 - Writes the transcode to `/cache`, then validates it with `ffprobe`. Validation checks HEVC video, copied audio/subtitle/attachment codecs and counts, chapter count, and duration.
 - Rejects outputs whose resolution, display aspect ratio, frame rate, or SDR color signaling differs from the source.
