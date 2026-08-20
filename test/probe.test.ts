@@ -46,6 +46,15 @@ test("ignores attached artwork when counting content video", () => {
   assert.equal(eligibility(input).eligible, true);
 });
 
+test("rejects an unknown subtitle codec that cannot be preserved", () => {
+  const input = media(video());
+  input.streams.push({ index: 2, codec_type: "subtitle" });
+  assert.deepEqual(eligibility(input), {
+    eligible: false,
+    reason: "subtitle stream 2 codec is unknown and cannot be preserved"
+  });
+});
+
 test("validates codec, copied streams, chapters and duration", () => {
   const input = media(video());
   const output = media(video({ codec_name: "hevc" }), "100.4");

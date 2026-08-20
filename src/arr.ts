@@ -46,6 +46,12 @@ function containingItem(items: ArrItem[], file: string): ArrItem | undefined {
     .sort((a, b) => b.path.length - a.path.length)[0];
 }
 
+export function selectMediaFile(files: ArrFile[], file: string, previous?: ArrFile): ArrFile | undefined {
+  return files.find((candidate) => samePath(candidate.path, file))
+    ?? (previous ? files.find((candidate) => candidate.id === previous.id) : undefined)
+    ?? previous;
+}
+
 async function notifyOne(kind: "Sonarr" | "Radarr", config: ApiConfig, file: string): Promise<boolean> {
   const isSonarr = kind === "Sonarr";
   const itemRoute = isSonarr ? "/series" : "/movie";
@@ -54,11 +60,14 @@ async function notifyOne(kind: "Sonarr" | "Radarr", config: ApiConfig, file: str
   const item = containingItem(items, file);
   if (!item) return false;
 
+  const fileRoute = `/${isSonarr ? "episodefile" : "moviefile"}?${idName}=${item.id}`;
+  const filesBeforeRescan = await request<ArrFile[]>(config, fileRoute);
+  const previousMediaFile = filesBeforeRescan.find((candidate) => samePath(candidate.path, file));
   const rescan = await command(config, { name: isSonarr ? "RescanSeries" : "RescanMovie", [idName]: item.id });
   await waitForCommand(config, rescan.id);
 
-  const files = await request<ArrFile[]>(config, `/${isSonarr ? "episodefile" : "moviefile"}?${idName}=${item.id}`);
-  const mediaFile = files.find((candidate) => samePath(candidate.path, file));
+  const filesAfterRescan = await request<ArrFile[]>(config, fileRoute);
+  const mediaFile = selectMediaFile(filesAfterRescan, file, previousMediaFile);
   if (!mediaFile) throw new Error(`${kind} did not report the replaced file after rescan`);
 
   const rename = await command(config, { name: "RenameFiles", [idName]: item.id, files: [mediaFile.id] });
