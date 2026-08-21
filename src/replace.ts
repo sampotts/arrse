@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+import { constants } from "node:fs";
 import { chmod, chown, copyFile, open, rename, stat, unlink, utimes } from "node:fs/promises";
 import path from "node:path";
 import { probe, validateTranscode } from "./probe.js";
@@ -11,12 +13,15 @@ async function removeIfPresent(file: string): Promise<void> {
   }
 }
 
+export function createStagedPath(source: string): string {
+  return path.join(path.dirname(source), `.${path.basename(source)}.arrse-${randomUUID()}.tmp`);
+}
+
 export async function safelyReplace(source: string, cacheOutput: string, inputProbe: ProbeResult): Promise<void> {
   const original = await stat(source);
-  const staged = path.join(path.dirname(source), `.${path.basename(source)}.arrse-${process.pid}.tmp`);
-  await removeIfPresent(staged);
+  const staged = createStagedPath(source);
   try {
-    await copyFile(cacheOutput, staged);
+    await copyFile(cacheOutput, staged, constants.COPYFILE_EXCL);
     await chmod(staged, original.mode);
     try {
       await chown(staged, original.uid, original.gid);

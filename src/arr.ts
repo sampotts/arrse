@@ -68,7 +68,10 @@ async function notifyOne(kind: "Sonarr" | "Radarr", config: ApiConfig, file: str
 
   const filesAfterRescan = await request<ArrFile[]>(config, fileRoute);
   const mediaFile = selectMediaFile(filesAfterRescan, file, previousMediaFile);
-  if (!mediaFile) throw new Error(`${kind} did not report the replaced file after rescan`);
+  if (!mediaFile) {
+    log("INFO", `${kind} rescan completed, but the file is not indexed; rename skipped ${quote(file)}`);
+    return true;
+  }
 
   const rename = await command(config, { name: "RenameFiles", [idName]: item.id, files: [mediaFile.id] });
   await waitForCommand(config, rename.id);
