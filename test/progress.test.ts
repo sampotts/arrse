@@ -38,8 +38,8 @@ test("formats saved bytes without JSON", () => {
 
 test("formats verified savings outcomes with emojis", () => {
   assert.equal(
-    formatSavedResult(50, 2_340_000_000, "/path/to/file.mp4"),
-    `✅ Source replaced safely. Saved 50.00% (2.34GB) "/path/to/file.mp4"`
+    formatSavedResult(50, 4_680_000_000, 2_340_000_000, "/path/to/file.mp4"),
+    `✅ Success. Saved 50.00% (4.68GB → 2.34GB) "/path/to/file.mp4"`
   );
   assert.equal(
     formatSkippedResult(-156.67, 15, "/path/to/file.mp4"),

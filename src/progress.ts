@@ -29,8 +29,8 @@ export function formatSkippedResult(savingsPercent: number, minimumPercent: numb
   return `⚠️ ${result}; minimum saving is ${minimumPercent}%. ${quote(source)}`;
 }
 
-export function formatSavedResult(savingsPercent: number, bytesSaved: number, source: string): string {
-  return `✅ Source replaced safely. Saved ${savingsPercent.toFixed(2)}% (${formatBytes(bytesSaved)}) ${quote(source)}`;
+export function formatSavedResult(savingsPercent: number, sourceBytes: number, outputBytes: number, source: string): string {
+  return `✅ Success. Saved ${savingsPercent.toFixed(2)}% (${formatBytes(sourceBytes)} → ${formatBytes(outputBytes)}) ${quote(source)}`;
 }
 
 export function formatSavingsDetail(savingsPercent: number): string {

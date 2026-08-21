@@ -284,7 +284,7 @@ export class Optimizer {
       }
       await safelyReplace(source, cacheOutput, input);
       await this.state.record(source, "saved", `${savingsPercent.toFixed(2)}% savings`, profile);
-      log("SAVED", formatSavedResult(savingsPercent, sourceStat.size - outputStat.size, source));
+      log("SAVED", formatSavedResult(savingsPercent, sourceStat.size, outputStat.size, source));
       try {
         await notifyArr(source, this.config.sonarr, this.config.radarr);
       } catch (error) {
