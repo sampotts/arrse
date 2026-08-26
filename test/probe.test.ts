@@ -55,6 +55,15 @@ test("rejects an unknown subtitle codec that cannot be preserved", () => {
   });
 });
 
+test("rejects unknown data streams before remuxing MP4", () => {
+  const input = media(video());
+  input.streams.push({ index: 2, codec_type: "data", codec_name: "none" });
+  assert.deepEqual(eligibility(input), {
+    eligible: false,
+    reason: "data stream 2 codec is unknown and cannot be preserved"
+  });
+});
+
 test("validates codec, copied streams, chapters and duration", () => {
   const input = media(video());
   const output = media(video({ codec_name: "hevc" }), "100.4");

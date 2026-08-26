@@ -51,11 +51,12 @@ export function eligibility(result: ProbeResult): { eligible: true; videoStream:
   if (video.codec_name !== "h264") return { eligible: false, reason: `video codec is ${video.codec_name ?? "unknown"}` };
   const reason = hdrReason(video);
   if (reason) return { eligible: false, reason };
-  const unknownSubtitle = result.streams.find((stream) =>
-    stream.codec_type === "subtitle" && (!stream.codec_name || ["none", "unknown"].includes(stream.codec_name.toLowerCase()))
+  const unknownStream = result.streams.find((stream) =>
+    !stream.codec_name || ["none", "unknown"].includes(stream.codec_name.toLowerCase())
   );
-  if (unknownSubtitle) {
-    return { eligible: false, reason: `subtitle stream ${unknownSubtitle.index} codec is unknown and cannot be preserved` };
+  if (unknownStream) {
+    const type = unknownStream.codec_type ?? "unknown";
+    return { eligible: false, reason: `${type} stream ${unknownStream.index} codec is unknown and cannot be preserved` };
   }
   return { eligible: true, videoStream: video };
 }
