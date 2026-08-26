@@ -53,25 +53,28 @@ export function formatDuration(seconds: number): string {
 export function createMilestoneProgress(
   totalSeconds: number,
   onMilestone: (milestone: ProgressMilestone) => void,
-  now: () => number = Date.now
+  now: () => number = Date.now,
+  framesPerSecond?: number
 ): (chunk: string) => void {
   const thresholds = [25, 50, 75, 100];
   const startedAt = now();
   let nextThreshold = 0;
   let buffer = "";
   let outputSeconds = 0;
+  let encodedFrames = 0;
   let speed: number | undefined;
 
   const report = (finished: boolean) => {
     if (!(totalSeconds > 0)) return;
-    const actualPercent = finished ? 100 : Math.min(100, (outputSeconds / totalSeconds) * 100);
+    const videoSeconds = framesPerSecond && framesPerSecond > 0 ? encodedFrames / framesPerSecond : outputSeconds;
+    const actualPercent = finished ? 100 : Math.min(100, (videoSeconds / totalSeconds) * 100);
     while (nextThreshold < thresholds.length && actualPercent >= thresholds[nextThreshold]) {
       const percent = thresholds[nextThreshold++];
       const elapsedSeconds = Math.max(0.001, (now() - startedAt) / 1000);
-      const measuredSpeed = speed && speed > 0 ? speed : outputSeconds / elapsedSeconds;
+      const measuredSpeed = framesPerSecond && framesPerSecond > 0 ? videoSeconds / elapsedSeconds : speed && speed > 0 ? speed : outputSeconds / elapsedSeconds;
       const etaSeconds = percent === 100 || !(measuredSpeed > 0)
         ? 0
-        : Math.max(0, (totalSeconds - outputSeconds) / measuredSpeed);
+        : Math.max(0, (totalSeconds - videoSeconds) / measuredSpeed);
       onMilestone({ percent, etaSeconds, speed: measuredSpeed > 0 ? measuredSpeed : undefined });
     }
   };
@@ -88,6 +91,9 @@ export function createMilestoneProgress(
       if (key === "out_time_us") {
         const microseconds = Number(value);
         if (Number.isFinite(microseconds)) outputSeconds = microseconds / 1_000_000;
+      } else if (key === "frame") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed) && parsed >= 0) encodedFrames = parsed;
       } else if (key === "speed") {
         const parsed = Number.parseFloat(value.replace(/x$/, ""));
         if (Number.isFinite(parsed) && parsed > 0) speed = parsed;

@@ -58,6 +58,12 @@ export function eligibility(result: ProbeResult): { eligible: true; videoStream:
     const type = unknownStream.codec_type ?? "unknown";
     return { eligible: false, reason: `${type} stream ${unknownStream.index} codec is unknown and cannot be preserved` };
   }
+  const dimensionlessVideo = result.streams.find((stream) =>
+    stream.codec_type === "video" && (!(stream.width && stream.width > 0) || !(stream.height && stream.height > 0))
+  );
+  if (dimensionlessVideo) {
+    return { eligible: false, reason: `video stream ${dimensionlessVideo.index} dimensions are missing and cannot be preserved` };
+  }
   return { eligible: true, videoStream: video };
 }
 
@@ -67,7 +73,7 @@ export function mediaDuration(result: ProbeResult): number {
   return Math.max(0, ...result.streams.map((stream) => Number(stream.duration) || 0));
 }
 
-function frameRate(value?: string): number | undefined {
+export function frameRate(value?: string): number | undefined {
   if (!value) return undefined;
   const [numerator, denominator = 1] = value.split("/").map(Number);
   if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) return undefined;

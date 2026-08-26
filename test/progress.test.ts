@@ -26,6 +26,18 @@ test("handles progress records split across output chunks", () => {
   assert.deepEqual(milestones.map(({ percent }) => percent), [25, 50]);
 });
 
+test("uses encoded video frames instead of copied-stream timestamps", () => {
+  const milestones: ProgressMilestone[] = [];
+  let elapsedSeconds = 0;
+  const progress = createMilestoneProgress(100, (value) => milestones.push(value), () => elapsedSeconds * 1000, 25);
+
+  elapsedSeconds = 10;
+  progress("frame=650\nout_time_us=90000000\nspeed=9.0x\nprogress=continue\n");
+
+  assert.deepEqual(milestones.map(({ percent }) => percent), [25]);
+  assert.ok(Math.abs(milestones[0].etaSeconds - 28.46) < 0.01);
+});
+
 test("formats the concise progress log message", () => {
   assert.equal(formatProgressMessage(50, 434, "/path/to/file.mp4"), `50% (ETA 7m 14s) "/path/to/file.mp4"`);
   assert.equal(formatProgressMessage(100, 0, "/path/to/file.mp4"), `Done! "/path/to/file.mp4"`);

@@ -3,7 +3,7 @@ import { mkdir, opendir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { notifyArr } from "./arr.js";
 import { log, quote } from "./logger.js";
-import { eligibility, mediaDuration, probe, validateTranscode } from "./probe.js";
+import { eligibility, frameRate, mediaDuration, probe, validateTranscode } from "./probe.js";
 import { createMilestoneProgress, formatProgressMessage, formatSavedResult, formatSavingsDetail, formatSkippedResult } from "./progress.js";
 import { run } from "./process.js";
 import { safelyReplace } from "./replace.js";
@@ -260,7 +260,7 @@ export class Optimizer {
       log("TRANSCODE", `Starting Intel hardware HEVC transcode using ${mode} ${quote(source)}`);
       const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds }) => {
         log("PROGRESS", formatProgressMessage(percent, etaSeconds, source));
-      });
+      }, undefined, frameRate(check.videoStream.avg_frame_rate));
       await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput, check.videoStream.index, this.config, this.encoder, qvbrTarget?.videoBitrate), this.signal, reportProgress);
 
       if (this.signal?.aborted) throw this.signal.reason;

@@ -64,6 +64,15 @@ test("rejects unknown data streams before remuxing MP4", () => {
   });
 });
 
+test("rejects video tracks without dimensions before remuxing MKV", () => {
+  const input = media(video());
+  input.streams.push(video({ index: 2, codec_name: "mjpeg", width: undefined, disposition: { attached_pic: 1 } }));
+  assert.deepEqual(eligibility(input), {
+    eligible: false,
+    reason: "video stream 2 dimensions are missing and cannot be preserved"
+  });
+});
+
 test("validates codec, copied streams, chapters and duration", () => {
   const input = media(video());
   const output = media(video({ codec_name: "hevc" }), "100.4");
