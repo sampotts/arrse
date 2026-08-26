@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eligibility, hdrReason, validateTranscode } from "../src/probe.js";
+import { eligibility, hdrReason, mediaDuration, validateTranscode } from "../src/probe.js";
 import { ProbeResult, ProbeStream } from "../src/types.js";
 
 const video = (overrides: Partial<ProbeStream> = {}): ProbeStream => ({
@@ -73,6 +73,11 @@ test("rejects video tracks without dimensions before remuxing MKV", () => {
   });
 });
 
+test("prefers content-video duration over misleading container duration", () => {
+  const input = media(video({ duration: "1157.48" }), "2997.20");
+  assert.equal(mediaDuration(input), 1157.48);
+});
+
 test("validates codec, copied streams, chapters and duration", () => {
   const input = media(video());
   const output = media(video({ codec_name: "hevc" }), "100.4");
@@ -82,6 +87,14 @@ test("validates codec, copied streams, chapters and duration", () => {
   output.chapters = [];
   output.format!.duration = "90";
   assert.equal(validateTranscode(input, output).length, 3);
+});
+
+test("matches the transcoded video by mapped stream index", () => {
+  const input = media(video({ index: 1 }));
+  input.streams.unshift(video({ index: 0, codec_name: "mjpeg", disposition: { attached_pic: 1 } }));
+  const output = media(video({ index: 1, codec_name: "hevc", disposition: { attached_pic: 1 } }));
+  output.streams.unshift(video({ index: 0, codec_name: "mjpeg", disposition: { attached_pic: 1 } }));
+  assert.deepEqual(validateTranscode(input, output), []);
 });
 
 test("rejects changes to core picture characteristics", () => {

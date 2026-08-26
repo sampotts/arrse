@@ -68,8 +68,10 @@ export function eligibility(result: ProbeResult): { eligible: true; videoStream:
 }
 
 export function mediaDuration(result: ProbeResult): number {
+  const videoDuration = Number(contentVideoStreams(result)[0]?.duration);
+  if (Number.isFinite(videoDuration) && videoDuration > 0) return videoDuration;
   const formatDuration = Number(result.format?.duration);
-  if (Number.isFinite(formatDuration)) return formatDuration;
+  if (Number.isFinite(formatDuration) && formatDuration > 0) return formatDuration;
   return Math.max(0, ...result.streams.map((stream) => Number(stream.duration) || 0));
 }
 
@@ -82,13 +84,25 @@ export function frameRate(value?: string): number | undefined {
 
 export function validateTranscode(input: ProbeResult, output: ProbeResult): string[] {
   const errors: string[] = [];
-  const outputVideos = contentVideoStreams(output);
-  if (outputVideos.length !== 1 || outputVideos[0].codec_name !== "hevc") {
+  const inputVideo = contentVideoStreams(input)[0];
+  const inputVideos = input.streams.filter((stream) => stream.codec_type === "video");
+  const outputVideos = output.streams.filter((stream) => stream.codec_type === "video");
+  const outputVideo = inputVideo
+    ? outputVideos.find((stream) => stream.index === inputVideo.index)
+    : undefined;
+  if (!outputVideo || outputVideo.codec_name !== "hevc") {
     errors.push("output must contain exactly one HEVC content video stream");
   }
+  if (inputVideos.length !== outputVideos.length) {
+    errors.push(`video stream count changed (${inputVideos.length} to ${outputVideos.length})`);
+  }
+  for (const inputExtra of inputVideos.filter((stream) => stream.index !== inputVideo?.index)) {
+    const outputExtra = outputVideos.find((stream) => stream.index === inputExtra.index);
+    if (!outputExtra || outputExtra.codec_name !== inputExtra.codec_name) {
+      errors.push(`video stream ${inputExtra.index} codec changed (${inputExtra.codec_name} to ${outputExtra?.codec_name ?? "missing"})`);
+    }
+  }
 
-  const inputVideo = contentVideoStreams(input)[0];
-  const outputVideo = outputVideos[0];
   if (inputVideo && outputVideo) {
     if (inputVideo.width !== outputVideo.width || inputVideo.height !== outputVideo.height) {
       errors.push(`video dimensions changed (${inputVideo.width}x${inputVideo.height} to ${outputVideo.width}x${outputVideo.height})`);

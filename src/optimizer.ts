@@ -156,17 +156,19 @@ export function ffmpegArgs(
   videoStreamIndex: number,
   config: Config,
   encoder: HardwareEncoder = "vaapi-qvbr",
-  targetVideoBitrate?: number
+  targetVideoBitrate?: number,
+  hardwareDecode = true
 ): string[] {
   if (encoder === "vaapi-qvbr" && targetVideoBitrate === undefined) {
     throw new Error("QVBR requires a target video bitrate");
   }
   const deviceArgs = [
-    "-vaapi_device", config.device,
-    "-hwaccel", "vaapi",
-    "-hwaccel_device", config.device,
-    "-hwaccel_output_format", "vaapi"
+    "-vaapi_device", config.device
   ];
+  if (hardwareDecode) {
+    deviceArgs.push("-hwaccel", "vaapi", "-hwaccel_device", config.device, "-hwaccel_output_format", "vaapi");
+  }
+  const filterArgs = hardwareDecode ? [] : [`-filter:${videoStreamIndex}`, "format=nv12,hwupload"];
   const encoderArgs = encoder === "vaapi-qvbr"
     ? [
         `-c:${videoStreamIndex}`, "hevc_vaapi",
@@ -193,10 +195,16 @@ export function ffmpegArgs(
     "-map_metadata", "0",
     "-map_chapters", "0",
     "-c", "copy",
+    ...filterArgs,
     ...encoderArgs,
     "-max_muxing_queue_size", "4096",
+    ...(path.extname(output).toLowerCase() === ".m4v" ? ["-f", "mp4"] : []),
     output
   ];
+}
+
+function shouldRetryWithSoftwareDecode(error: unknown): boolean {
+  return /Error reinitializing filters|Impossible to convert|Function not implemented|output must contain exactly one HEVC content video stream|duration changed/i.test(String(error));
 }
 
 function encodingProfile(config: Config, encoder: HardwareEncoder): string {
@@ -258,16 +266,27 @@ export class Optimizer {
       }
       const mode = this.encoder === "vaapi-qvbr" ? `VAAPI QVBR at ${mbps(qvbrTarget!.videoBitrate)}` : "VAAPI CQP";
       log("TRANSCODE", `Starting Intel hardware HEVC transcode using ${mode} ${quote(source)}`);
-      const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds }) => {
-        log("PROGRESS", formatProgressMessage(percent, etaSeconds, source));
-      }, undefined, frameRate(check.videoStream.avg_frame_rate));
-      await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput, check.videoStream.index, this.config, this.encoder, qvbrTarget?.videoBitrate), this.signal, reportProgress);
+      const transcode = async (hardwareDecode: boolean) => {
+        const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds }) => {
+          log("PROGRESS", formatProgressMessage(percent, etaSeconds, source));
+        }, undefined, frameRate(check.videoStream.avg_frame_rate));
+        await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput!, check.videoStream.index, this.config, this.encoder, qvbrTarget?.videoBitrate, hardwareDecode), this.signal, reportProgress);
+        if (this.signal?.aborted) throw this.signal.reason;
+        const output = await probe(cacheOutput!);
+        const validationErrors = validateTranscode(input, output);
+        if (validationErrors.length > 0) throw new Error(validationErrors.join("; "));
+      };
+      try {
+        await transcode(true);
+      } catch (error) {
+        if (this.signal?.aborted || !shouldRetryWithSoftwareDecode(error)) throw error;
+        await removeIfPresent(cacheOutput);
+        log("INFO", `Zero-copy attempt failed; retrying with software decode and Intel hardware encode. Reason: ${String(error)} ${quote(source)}`);
+        await transcode(false);
+      }
 
       if (this.signal?.aborted) throw this.signal.reason;
 
-      const output = await probe(cacheOutput);
-      const validationErrors = validateTranscode(input, output);
-      if (validationErrors.length > 0) throw new Error(validationErrors.join("; "));
       log("VALIDATE", `Validation complete ${quote(source)}`);
 
       const outputStat = await stat(cacheOutput);

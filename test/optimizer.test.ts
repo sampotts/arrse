@@ -61,6 +61,19 @@ test("CQP fallback uses zero-copy hardware decode and preserves mapped streams",
   assert.ok(!args.includes("hevc_qsv"));
 });
 
+test("software-decode fallback uploads NV12 frames to the Intel encoder", () => {
+  const args = ffmpegArgs("/media/show.mkv", "/cache/out.mkv", 2, config, "vaapi-qvbr", 4_000_000, false);
+  assert.ok(!args.includes("-hwaccel"));
+  assert.equal(args[args.indexOf("-filter:2") + 1], "format=nv12,hwupload");
+  assert.equal(args[args.indexOf("-c:2") + 1], "hevc_vaapi");
+});
+
+test("M4V output uses the HEVC-capable MP4 muxer", () => {
+  const args = ffmpegArgs("/media/show.m4v", "/cache/out.m4v", 0, config, "vaapi-qvbr", 4_000_000);
+  assert.equal(args[args.indexOf("-f") + 1], "mp4");
+  assert.equal(args.at(-1), "/cache/out.m4v");
+});
+
 test("QVBR target accounts for copied streams and whole-file savings", () => {
   const input = {
     streams: [
