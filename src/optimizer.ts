@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { mkdir, opendir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
-import { notifyArr } from "./arr.js";
+import { notifyArrFiles } from "./arr.js";
 import { log, quote } from "./logger.js";
 import { eligibility, frameRate, mediaDuration, probe, validateTranscode } from "./probe.js";
 import { createMilestoneProgress, formatProgressMessage, formatSavedResult, formatSavingsDetail, formatSkippedResult } from "./progress.js";
@@ -217,6 +217,7 @@ function mbps(bitsPerSecond: number): string {
 
 export class Optimizer {
   private readonly active = new Set<string>();
+  private readonly pendingArrNotifications = new Set<string>();
 
   constructor(
     private readonly config: Config,
@@ -304,13 +305,7 @@ export class Optimizer {
       await safelyReplace(source, cacheOutput, input);
       await this.state.record(source, "saved", `${savingsPercent.toFixed(2)}% savings`, profile);
       log("SAVED", formatSavedResult(savingsPercent, sourceStat.size, outputStat.size, source));
-      try {
-        await notifyArr(source, this.config.sonarr, this.config.radarr);
-      } catch (error) {
-        // Replacing the media succeeded. An automation API outage must not make
-        // the already-HEVC file eligible for a replacement retry.
-        log("ERROR", `Arr notification failed after successful replacement: ${String(error)} ${quote(source)}`);
-      }
+      this.pendingArrNotifications.add(source);
     } catch (error) {
       if (this.signal?.aborted) {
         log("INFO", `Transcode cancelled during shutdown; original left in place ${quote(source)}`);
@@ -321,6 +316,19 @@ export class Optimizer {
     } finally {
       if (cacheOutput) await removeIfPresent(cacheOutput).catch((error) => log("ERROR", `Could not clean cache output: ${String(error)} ${quote(cacheOutput!)}`));
       this.active.delete(source);
+    }
+  }
+
+  private async flushArrNotifications(): Promise<void> {
+    const pending = [...this.pendingArrNotifications];
+    this.pendingArrNotifications.clear();
+    if (pending.length === 0) return;
+    try {
+      await notifyArrFiles(pending, this.config.sonarr, this.config.radarr);
+    } catch (error) {
+      // Replacing the media succeeded. An automation API outage must not make
+      // the already-HEVC file eligible for a replacement retry.
+      log("ERROR", `Arr notification failed after successful replacement: ${String(error)}`);
     }
   }
 
@@ -337,13 +345,14 @@ export class Optimizer {
     const queue = [...files].sort();
     log("SCAN", `Found ${queue.length} media file${queue.length === 1 ? "" : "s"} using ${this.config.workers} worker${this.config.workers === 1 ? "" : "s"}.`);
 
-    let next = 0;
-    const worker = async () => {
-      while (!this.signal?.aborted && next < queue.length) {
-        const index = next++;
-        await this.processFile(queue[index]);
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(this.config.workers, queue.length) }, worker));
+    // Run bounded waves so Sonarr/Radarr rescans only happen when no worker has
+    // a staged file beside its source. A series-wide rename can otherwise remove
+    // another worker's hidden staging file mid-replacement.
+    for (let start = 0; !this.signal?.aborted && start < queue.length; start += this.config.workers) {
+      const batch = queue.slice(start, start + this.config.workers);
+      await Promise.all(batch.map((file) => this.processFile(file)));
+      await this.flushArrNotifications();
+    }
+    await this.flushArrNotifications();
   }
 }

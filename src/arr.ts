@@ -52,41 +52,72 @@ export function selectMediaFile(files: ArrFile[], file: string, previous?: ArrFi
     ?? previous;
 }
 
-async function notifyOne(kind: "Sonarr" | "Radarr", config: ApiConfig, file: string): Promise<boolean> {
+interface NotificationGroup { item: ArrItem; files: string[] }
+
+async function notifyOne(kind: "Sonarr" | "Radarr", config: ApiConfig, requestedFiles: string[]): Promise<Set<string>> {
   const isSonarr = kind === "Sonarr";
   const itemRoute = isSonarr ? "/series" : "/movie";
   const idName = isSonarr ? "seriesId" : "movieId";
   const items = await request<ArrItem[]>(config, itemRoute);
-  const item = containingItem(items, file);
-  if (!item) return false;
+  const groups = new Map<number, NotificationGroup>();
+  const matched = new Set<string>();
 
-  const fileRoute = `/${isSonarr ? "episodefile" : "moviefile"}?${idName}=${item.id}`;
-  const filesBeforeRescan = await request<ArrFile[]>(config, fileRoute);
-  const previousMediaFile = filesBeforeRescan.find((candidate) => samePath(candidate.path, file));
-  const rescan = await command(config, { name: isSonarr ? "RescanSeries" : "RescanMovie", [idName]: item.id });
-  await waitForCommand(config, rescan.id);
-
-  const filesAfterRescan = await request<ArrFile[]>(config, fileRoute);
-  const mediaFile = selectMediaFile(filesAfterRescan, file, previousMediaFile);
-  if (!mediaFile) {
-    log("INFO", `${kind} rescan completed, but the file is not indexed; rename skipped ${quote(file)}`);
-    return true;
+  for (const file of requestedFiles) {
+    const item = containingItem(items, file);
+    if (!item) continue;
+    matched.add(file);
+    const group = groups.get(item.id) ?? { item, files: [] };
+    group.files.push(file);
+    groups.set(item.id, group);
   }
 
-  const rename = await command(config, { name: "RenameFiles", [idName]: item.id, files: [mediaFile.id] });
-  await waitForCommand(config, rename.id);
-  log("INFO", `${kind} rescan and rename completed ${quote(file)}`);
-  return true;
+  for (const { item, files } of groups.values()) {
+    const fileRoute = `/${isSonarr ? "episodefile" : "moviefile"}?${idName}=${item.id}`;
+    const filesBeforeRescan = await request<ArrFile[]>(config, fileRoute);
+    const previousBySource = new Map(files.map((file) => [
+      file,
+      filesBeforeRescan.find((candidate) => samePath(candidate.path, file))
+    ]));
+    const rescan = await command(config, { name: isSonarr ? "RescanSeries" : "RescanMovie", [idName]: item.id });
+    await waitForCommand(config, rescan.id);
+
+    const filesAfterRescan = await request<ArrFile[]>(config, fileRoute);
+    const selected = files.map((file) => ({
+      source: file,
+      mediaFile: selectMediaFile(filesAfterRescan, file, previousBySource.get(file))
+    }));
+    const mediaFileIds = [...new Set(selected.flatMap(({ mediaFile }) => mediaFile ? [mediaFile.id] : []))];
+    for (const { source, mediaFile } of selected) {
+      if (!mediaFile) log("INFO", `${kind} rescan completed, but the file is not indexed; rename skipped ${quote(source)}`);
+    }
+    if (mediaFileIds.length === 0) continue;
+
+    const rename = await command(config, { name: "RenameFiles", [idName]: item.id, files: mediaFileIds });
+    await waitForCommand(config, rename.id);
+    for (const { source, mediaFile } of selected) {
+      if (mediaFile) log("INFO", `${kind} rescan and rename completed ${quote(source)}`);
+    }
+  }
+
+  return matched;
 }
 
-export async function notifyArr(file: string, sonarr?: ApiConfig, radarr?: ApiConfig): Promise<void> {
-  const attempts: Array<Promise<boolean>> = [];
-  if (sonarr) attempts.push(notifyOne("Sonarr", sonarr, file));
-  if (radarr) attempts.push(notifyOne("Radarr", radarr, file));
+export async function notifyArrFiles(files: string[], sonarr?: ApiConfig, radarr?: ApiConfig): Promise<void> {
+  const attempts: Array<Promise<Set<string>>> = [];
+  if (sonarr) attempts.push(notifyOne("Sonarr", sonarr, files));
+  if (radarr) attempts.push(notifyOne("Radarr", radarr, files));
   if (attempts.length === 0) return;
   const results = await Promise.allSettled(attempts);
   const errors = results.filter((result): result is PromiseRejectedResult => result.status === "rejected");
-  const matched = results.some((result) => result.status === "fulfilled" && result.value);
-  for (const error of errors) log("ERROR", `Arr integration failed: ${String(error.reason)} ${quote(file)}`);
-  if (!matched && errors.length === 0) log("INFO", `No Sonarr or Radarr library root matched file ${quote(file)}`);
+  const matched = new Set(results.flatMap((result) => result.status === "fulfilled" ? [...result.value] : []));
+  for (const error of errors) log("ERROR", `Arr integration failed: ${String(error.reason)}`);
+  if (errors.length === 0) {
+    for (const file of files) {
+      if (!matched.has(file)) log("INFO", `No Sonarr or Radarr library root matched file ${quote(file)}`);
+    }
+  }
+}
+
+export async function notifyArr(file: string, sonarr?: ApiConfig, radarr?: ApiConfig): Promise<void> {
+  await notifyArrFiles([file], sonarr, radarr);
 }
