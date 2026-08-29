@@ -20,6 +20,8 @@ function parseArguments(args: string[]): { geometry: PillarboxGeometry; files: s
     if (!Number.isInteger(value) || value < 0) throw new Error(`invalid or missing ${name}`);
     return value;
   };
+  const quality = values.has("--quality") ? integer("--quality") : 16;
+  if (quality < 1 || quality > 51) throw new Error("--quality must be an integer from 1 to 51");
   const sampleAspectRatio = values.get("--sar");
   if (!sampleAspectRatio) throw new Error("missing --sar");
   if (files.length === 0) throw new Error("no files supplied");
@@ -30,7 +32,9 @@ function parseArguments(args: string[]): { geometry: PillarboxGeometry; files: s
       cropLeft: integer("--left"),
       cropRight: integer("--right"),
       sampleAspectRatio,
-      timestamp: values.get("--at")
+      timestamp: values.get("--at"),
+      quality,
+      device: values.get("--device")
     },
     files
   };
@@ -51,6 +55,6 @@ async function main(): Promise<void> {
 }
 
 main().catch((error) => {
-  log("ERROR", `Fatal error: ${String(error)}. Usage: node dist/src/repair-pillarbox.js --width 1920 --height 1080 --left 284 --right 286 --sar 64:45 [--at 00:10:00] <file ...>`);
+  log("ERROR", `Fatal error: ${String(error)}. Usage: node dist/src/repair-pillarbox.js --width 1920 --height 1080 --left 284 --right 286 --sar 64:45 [--quality 16] [--at 00:10:00] <file ...>`);
   process.exitCode = 1;
 });

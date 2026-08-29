@@ -3,8 +3,9 @@ import { spawn } from "node:child_process";
 import { mkdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { log, quote } from "./logger.js";
-import { contentVideoStreams, probe, validateTranscode } from "./probe.js";
+import { contentVideoStreams, frameRate, mediaDuration, probe, validateTranscode } from "./probe.js";
 import { run } from "./process.js";
+import { createMilestoneProgress, formatBytes, formatProgressMessage } from "./progress.js";
 import { safelyReplace } from "./replace.js";
 import { ProbeResult } from "./types.js";
 
@@ -15,6 +16,8 @@ export interface PillarboxGeometry {
   cropRight: number;
   sampleAspectRatio: string;
   timestamp?: string;
+  quality?: number;
+  device?: string;
 }
 
 export interface HorizontalBounds {
@@ -97,21 +100,32 @@ async function sampleFrame(source: string, timestamp: string, width: number, hei
   });
 }
 
-export function pillarboxRepairArgs(source: string, output: string, videoOrdinal: number, geometry: PillarboxGeometry): string[] {
+export function pillarboxRepairArgs(
+  source: string,
+  output: string,
+  videoIndex: number,
+  geometry: PillarboxGeometry,
+  inputAlreadyCropped = false
+): string[] {
   const target = pillarboxTargets(geometry);
-  const bsf = [
-    `crop_left=${geometry.cropLeft}`,
-    `crop_right=${geometry.cropRight}`,
-    "crop_top=0", "crop_bottom=0",
-    `sample_aspect_ratio=${geometry.sampleAspectRatio.replace(":", "/")}`
-  ].join(":");
+  const filters = [
+    ...(!inputAlreadyCropped ? [`crop=${target.activeWidth}:${geometry.expectedHeight}:${geometry.cropLeft}:0`] : []),
+    `setsar=${geometry.sampleAspectRatio.replace(":", "/")}`,
+    "format=nv12",
+    "hwupload"
+  ].join(",");
   return [
-    "-hide_banner", "-nostdin", "-y", "-v", "error",
+    "-hide_banner", "-nostdin", "-y", "-loglevel", "error", "-nostats", "-progress", "pipe:1",
+    "-vaapi_device", geometry.device ?? process.env.INTEL_DEVICE ?? "/dev/dri/renderD128",
     "-i", source,
     "-map", "0", "-map_metadata", "0", "-map_chapters", "0",
     "-c", "copy",
-    `-bsf:v:${videoOrdinal}`, `hevc_metadata=${bsf}`,
-    `-aspect:v:${videoOrdinal}`, target.muxAspect,
+    `-filter:${videoIndex}`, filters,
+    `-c:${videoIndex}`, "hevc_vaapi",
+    `-low_power:${videoIndex}`, "1",
+    `-rc_mode:${videoIndex}`, "CQP",
+    `-qp:${videoIndex}`, String(geometry.quality ?? 16),
+    `-aspect:${videoIndex}`, target.displayAspect,
     "-max_muxing_queue_size", "4096",
     ...(path.extname(output).toLowerCase() === ".m4v" ? ["-f", "mp4"] : []),
     output
@@ -142,36 +156,45 @@ export async function repairPillarbox(source: string, geometry: PillarboxGeometr
   if (videos.length !== 1) throw new Error(`expected one content video stream, found ${videos.length}`);
   const video = videos[0];
   if (video.codec_name !== "hevc") throw new Error(`video codec is ${video.codec_name ?? "unknown"}, not HEVC`);
-  if (video.width !== geometry.expectedWidth || video.height !== geometry.expectedHeight) {
-    throw new Error(`visible dimensions are ${video.width}x${video.height}, expected unrepaired ${geometry.expectedWidth}x${geometry.expectedHeight}`);
-  }
   if (geometry.cropLeft % 2 !== 0 || geometry.cropRight % 2 !== 0) throw new Error("4:2:0 HEVC crop offsets must be even");
+  const target = pillarboxTargets(geometry);
+  const inputAlreadyCropped = video.width === target.activeWidth && video.height === geometry.expectedHeight;
+  const inputNeedsCrop = video.width === geometry.expectedWidth && video.height === geometry.expectedHeight;
+  if (!inputAlreadyCropped && !inputNeedsCrop) {
+    throw new Error(`visible dimensions are ${video.width}x${video.height}; expected ${geometry.expectedWidth}x${geometry.expectedHeight} or ${target.activeWidth}x${geometry.expectedHeight}`);
+  }
 
-  const frame = await sampleFrame(source, geometry.timestamp ?? "00:10:00", geometry.expectedWidth, geometry.expectedHeight);
-  const detected = detectHorizontalBounds(frame, geometry.expectedWidth, geometry.expectedHeight);
-  const expectedRight = geometry.expectedWidth - geometry.cropRight - 1;
-  if (Math.abs(detected.left - geometry.cropLeft) > 8 || Math.abs(detected.right - expectedRight) > 8) {
-    throw new Error(`sample frame pillarbox is x=${detected.left}..${detected.right}, expected approximately x=${geometry.cropLeft}..${expectedRight}`);
+  const sampleWidth = inputAlreadyCropped ? target.activeWidth : geometry.expectedWidth;
+  const frame = await sampleFrame(source, geometry.timestamp ?? "00:10:00", sampleWidth, geometry.expectedHeight);
+  const detected = detectHorizontalBounds(frame, sampleWidth, geometry.expectedHeight);
+  const expectedLeft = inputAlreadyCropped ? 0 : geometry.cropLeft;
+  const expectedRight = inputAlreadyCropped ? target.activeWidth - 1 : geometry.expectedWidth - geometry.cropRight - 1;
+  if (Math.abs(detected.left - expectedLeft) > 8 || Math.abs(detected.right - expectedRight) > 8) {
+    throw new Error(`sample frame picture is x=${detected.left}..${detected.right}, expected approximately x=${expectedLeft}..${expectedRight}`);
   }
 
   await mkdir(cacheDir, { recursive: true });
   const sourceStat = await stat(source);
   const digest = createHash("sha256").update(source).digest("hex").slice(0, 16);
   const cacheOutput = path.join(cacheDir, `${digest}-${randomUUID()}${path.extname(source)}`);
-  const videoOrdinal = input.streams.filter((stream) => stream.codec_type === "video").indexOf(video);
   const expected = expectedProbe(input, video.index, geometry);
   try {
-    await run("ffmpeg", pillarboxRepairArgs(source, cacheOutput, videoOrdinal, geometry));
+    log("TRANSCODE", `Starting high-quality Intel hardware pillarbox repair at QP ${geometry.quality ?? 16} ${quote(source)}`);
+    const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds }) => {
+      log("PROGRESS", formatProgressMessage(percent, etaSeconds, source));
+    }, undefined, frameRate(video.avg_frame_rate));
+    await run("ffmpeg", pillarboxRepairArgs(source, cacheOutput, video.index, geometry, inputAlreadyCropped), undefined, reportProgress);
     const output = await probe(cacheOutput);
     const validationErrors = validateTranscode(expected, output);
     if (validationErrors.length > 0) throw new Error(validationErrors.join("; "));
+    log("VALIDATE", `Validation complete ${quote(source)}`);
     const current = await stat(source);
     if (current.size !== sourceStat.size || Math.trunc(current.mtimeMs) !== Math.trunc(sourceStat.mtimeMs)) {
       throw new Error("source changed while pillarbox repair was running");
     }
     await safelyReplace(source, cacheOutput, expected);
-    const target = pillarboxTargets(geometry);
-    log("SAVED", `✅ Pillarbox hidden losslessly. Visible ${target.activeWidth}x${geometry.expectedHeight}, SAR ${geometry.sampleAspectRatio}, DAR ${target.displayAspect} ${quote(source)}`);
+    const outputStat = await stat(source);
+    log("SAVED", `✅ Pillarbox repaired. ${formatBytes(sourceStat.size)} → ${formatBytes(outputStat.size)}. Visible ${target.activeWidth}x${geometry.expectedHeight}, DAR ${target.displayAspect} ${quote(source)}`);
   } finally {
     await removeIfPresent(cacheOutput).catch((error) => log("ERROR", `Could not clean pillarbox repair output: ${String(error)} ${quote(cacheOutput)}`));
   }

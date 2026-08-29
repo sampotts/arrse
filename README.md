@@ -145,7 +145,7 @@ docker exec arrse node dist/src/audit-aspect.js \
   "/data/path/to/library"
 ```
 
-The old square-pixel repair command is disabled because metadata alone can squash anamorphic sources. Measured HEVC pillarboxes can instead be hidden losslessly with a conformance crop and explicit sample aspect ratio:
+The old metadata-only repair command is disabled because hardware decoders may ignore its left crop. Measured HEVC pillarboxes can instead be removed physically with a high-quality Intel hardware repair:
 
 ```sh
 docker exec arrse node dist/src/repair-pillarbox.js \
@@ -154,4 +154,4 @@ docker exec arrse node dist/src/repair-pillarbox.js \
   "/data/path/to/affected-file.mp4"
 ```
 
-Multiple files may be supplied. Before writing anything, Arrse decodes a sample frame and confirms that its black boundaries match the requested crop. It then stream-copies to `/cache`, validates streams, visible dimensions, aspect ratio, chapters, and duration, stages beside the source, and atomically replaces it. Pixels are not re-encoded. A mismatch or error leaves the original untouched.
+Multiple files may be supplied. Before writing anything, Arrse decodes a sample frame and confirms that its black boundaries match the requested crop. It re-encodes only the video at high-quality CQP 16 by default, copies all other streams to `/cache`, validates streams, visible dimensions, aspect ratio, chapters, and duration, stages beside the source, and atomically replaces it. Use `--quality` to override the repair quality. A mismatch or error leaves the original untouched.

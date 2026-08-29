@@ -18,14 +18,20 @@ test("calculates the measured PAL anamorphic display geometry", () => {
   });
 });
 
-test("stream-copies while applying HEVC conformance crop and PAL SAR", () => {
+test("physically crops and re-encodes video while copying every other stream", () => {
   const args = pillarboxRepairArgs("/media/input.mp4", "/cache/output.mp4", 0, geometry);
   assert.equal(args[args.indexOf("-c") + 1], "copy");
-  assert.equal(
-    args[args.indexOf("-bsf:v:0") + 1],
-    "hevc_metadata=crop_left=284:crop_right=286:crop_top=0:crop_bottom=0:sample_aspect_ratio=64/45"
-  );
-  assert.equal(args[args.indexOf("-aspect:v:0") + 1], "1024:405");
+  assert.equal(args[args.indexOf("-filter:0") + 1], "crop=1350:1080:284:0,setsar=64/45,format=nv12,hwupload");
+  assert.equal(args[args.indexOf("-c:0") + 1], "hevc_vaapi");
+  assert.equal(args[args.indexOf("-rc_mode:0") + 1], "CQP");
+  assert.equal(args[args.indexOf("-qp:0") + 1], "16");
+  assert.equal(args[args.indexOf("-aspect:0") + 1], "16:9");
+  assert.ok(!args.some((arg) => arg.includes("hevc_metadata")));
+});
+
+test("re-encodes an already metadata-cropped input without cropping it twice", () => {
+  const args = pillarboxRepairArgs("/media/input.mp4", "/cache/output.mp4", 0, geometry, true);
+  assert.equal(args[args.indexOf("-filter:0") + 1], "setsar=64/45,format=nv12,hwupload");
 });
 
 test("detects horizontal black borders in a grayscale frame", () => {
