@@ -145,11 +145,13 @@ docker exec arrse node dist/src/audit-aspect.js \
   "/data/path/to/library"
 ```
 
-Already-converted HEVC files with malformed aspect metadata can be repaired without transcoding their video, audio, or subtitle streams:
+The old square-pixel repair command is disabled because metadata alone can squash anamorphic sources. Measured HEVC pillarboxes can instead be hidden losslessly with a conformance crop and explicit sample aspect ratio:
 
 ```sh
-docker exec arrse node dist/src/repair-aspect.js \
+docker exec arrse node dist/src/repair-pillarbox.js \
+  --width 1920 --height 1080 \
+  --left 284 --right 286 --sar 64:45 \
   "/data/path/to/affected-file.mp4"
 ```
 
-Multiple files may be supplied in one command. Repair is limited to recognized square-pixel HD/UHD frame sizes. Arrse writes the stream-copy result to `/cache`, validates its streams, dimensions, aspect ratio, chapters, and duration, stages it beside the source, and only then replaces the original atomically. An error leaves the original in place.
+Multiple files may be supplied. Before writing anything, Arrse decodes a sample frame and confirms that its black boundaries match the requested crop. It then stream-copies to `/cache`, validates streams, visible dimensions, aspect ratio, chapters, and duration, stages beside the source, and atomically replaces it. Pixels are not re-encoded. A mismatch or error leaves the original untouched.
