@@ -29,6 +29,19 @@ test("accepts one SDR H.264 content stream", () => {
   assert.equal(eligibility(media(video())).eligible, true);
 });
 
+test("accepts unspecified aspect metadata but rejects conflicting standard-HD metadata", () => {
+  assert.equal(eligibility(media(video({
+    sample_aspect_ratio: undefined,
+    display_aspect_ratio: undefined
+  }))).eligible, true);
+  const malformed = eligibility(media(video({
+    sample_aspect_ratio: "533:360",
+    display_aspect_ratio: "1066:405"
+  })));
+  assert.equal(malformed.eligible, false);
+  if (!malformed.eligible) assert.match(malformed.reason, /suspicious aspect metadata/);
+});
+
 test("rejects HEVC and AV1", () => {
   assert.deepEqual(eligibility(media(video({ codec_name: "hevc" }))), { eligible: false, reason: "video codec is hevc" });
   assert.deepEqual(eligibility(media(video({ codec_name: "av1" }))), { eligible: false, reason: "video codec is av1" });

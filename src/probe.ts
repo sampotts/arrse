@@ -31,7 +31,7 @@ function ratioValue(value?: string): number | undefined {
 function ratiosEqual(left?: string, right?: string): boolean {
   const leftValue = ratioValue(left);
   const rightValue = ratioValue(right);
-  return leftValue !== undefined && rightValue !== undefined && Math.abs(leftValue - rightValue) < 0.0001;
+  return leftValue !== undefined && rightValue !== undefined && Math.abs(leftValue - rightValue) / Math.abs(leftValue) < 0.005;
 }
 
 export function isStandardSquarePixelFrame(stream: ProbeStream): boolean {
@@ -41,6 +41,13 @@ export function isStandardSquarePixelFrame(stream: ProbeStream): boolean {
 export function aspectRatioMatches(stream: ProbeStream, target: AspectTarget): boolean {
   return (!target.sample || ratiosEqual(target.sample, stream.sample_aspect_ratio))
     && (!target.display || ratiosEqual(target.display, stream.display_aspect_ratio));
+}
+
+export function aspectRatioConflicts(stream: ProbeStream, target: AspectTarget): boolean {
+  const sampleIsSpecified = ratioValue(stream.sample_aspect_ratio) !== undefined;
+  const displayIsSpecified = ratioValue(stream.display_aspect_ratio) !== undefined;
+  return Boolean(sampleIsSpecified && target.sample && !ratiosEqual(target.sample, stream.sample_aspect_ratio))
+    || Boolean(displayIsSpecified && target.display && !ratiosEqual(target.display, stream.display_aspect_ratio));
 }
 
 export function targetAspectRatio(stream: ProbeStream): AspectTarget {
@@ -106,6 +113,12 @@ export function eligibility(result: ProbeResult): { eligible: true; videoStream:
   if (videos.length !== 1) return { eligible: false, reason: `expected one video stream, found ${videos.length}` };
   const video = videos[0];
   if (video.codec_name !== "h264") return { eligible: false, reason: `video codec is ${video.codec_name ?? "unknown"}` };
+  if (isStandardSquarePixelFrame(video)) {
+    const target = targetAspectRatio(video);
+    if (aspectRatioConflicts(video, target)) {
+      return { eligible: false, reason: `standard-resolution video has suspicious aspect metadata (SAR ${video.sample_aspect_ratio ?? "unknown"}, DAR ${video.display_aspect_ratio ?? "unknown"})` };
+    }
+  }
   const reason = hdrReason(video);
   if (reason) return { eligible: false, reason };
   const unknownStream = result.streams.find((stream) =>

@@ -1,6 +1,6 @@
 import { stat } from "node:fs/promises";
 import { log, quote } from "./logger.js";
-import { aspectRatioMatches, contentVideoStreams, isStandardSquarePixelFrame, probe, targetAspectRatio } from "./probe.js";
+import { aspectRatioConflicts, contentVideoStreams, isStandardSquarePixelFrame, probe, targetAspectRatio } from "./probe.js";
 import { scan } from "./scan.js";
 import { ProbeStream } from "./types.js";
 
@@ -14,7 +14,7 @@ export interface AspectAuditResult {
 export function aspectIssue(stream: ProbeStream): string | undefined {
   if (stream.codec_name !== "hevc" || !isStandardSquarePixelFrame(stream)) return undefined;
   const target = targetAspectRatio(stream);
-  if (aspectRatioMatches(stream, target)) return undefined;
+  if (!aspectRatioConflicts(stream, target)) return undefined;
   return `SAR ${stream.sample_aspect_ratio ?? "unknown"}, DAR ${stream.display_aspect_ratio ?? "unknown"}; expected SAR ${target.sample}, DAR ${target.display}`;
 }
 

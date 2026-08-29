@@ -25,6 +25,14 @@ test("accepts correct square-pixel 1080p HEVC", () => {
   assert.equal(aspectIssue(hevc()), undefined);
 });
 
+test("does not flag unspecified or harmlessly rounded aspect metadata", () => {
+  assert.equal(aspectIssue(hevc({ sample_aspect_ratio: undefined, display_aspect_ratio: undefined })), undefined);
+  assert.equal(aspectIssue(hevc({
+    sample_aspect_ratio: "1277:1280",
+    display_aspect_ratio: "1277:720"
+  })), undefined);
+});
+
 test("does not classify anamorphic or H.264 video", () => {
   assert.equal(aspectIssue(hevc({ width: 1440, height: 1080, sample_aspect_ratio: "4:3" })), undefined);
   assert.equal(aspectIssue(hevc({ codec_name: "h264" })), undefined);

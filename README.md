@@ -20,6 +20,7 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - Ships checksum-pinned FFmpeg 9.0.1 built with Intel oneVPL and VAAPI support.
 - Runs hardware QVBR and CQP self-tests before scanning when `DRY_RUN=false`. If both modes fail, scanning remains paused and the tests retry once per minute without restarting the container.
 - Writes the transcode to `/cache`, then validates it with `ffprobe`. Validation checks HEVC video, copied audio/subtitle/attachment codecs and counts, chapter count, and duration.
+- Skips standard-resolution H.264 sources whose explicit aspect metadata conflicts with their natural display ratio instead of guessing or modifying their intent.
 - Normalizes standard HD/UHD frame sizes to square pixels and their natural display ratio. Nonstandard and anamorphic frame sizes retain their declared aspect ratio.
 - Rejects outputs whose resolution, sample/display aspect ratio, frame rate, or SDR color signaling is incorrect.
 - Checks the source size and modification time again before replacement, preventing replacement if another program changed it during encoding.

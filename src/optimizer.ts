@@ -16,7 +16,7 @@ export type Runner = typeof run;
 const CACHE_OUTPUT_PATTERN = /^[a-f0-9]{16}-[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.(?:mkv|mp4|m4v|mov|ts|m2ts)$/i;
 const MIN_QVBR_VIDEO_BITRATE = 250_000;
 const MUX_OVERHEAD_BITRATE = 32_000;
-const ENCODING_PROFILE_VERSION = 3;
+const ENCODING_PROFILE_VERSION = 4;
 
 export async function cleanupOrphanedCacheFiles(cacheDir: string): Promise<number> {
   await mkdir(cacheDir, { recursive: true });
