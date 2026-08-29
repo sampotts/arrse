@@ -3,7 +3,7 @@ import { mkdir, opendir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { notifyArrFiles } from "./arr.js";
 import { log, quote } from "./logger.js";
-import { eligibility, frameRate, mediaDuration, probe, validateTranscode } from "./probe.js";
+import { eligibility, frameRate, mediaDuration, probe, targetAspectRatio, validateTranscode } from "./probe.js";
 import { createMilestoneProgress, formatProgressMessage, formatSavedResult, formatSavingsDetail, formatSkippedResult } from "./progress.js";
 import { run } from "./process.js";
 import { safelyReplace } from "./replace.js";
@@ -16,7 +16,7 @@ export type Runner = typeof run;
 const CACHE_OUTPUT_PATTERN = /^[a-f0-9]{16}-[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}\.(?:mkv|mp4|m4v|mov|ts|m2ts)$/i;
 const MIN_QVBR_VIDEO_BITRATE = 250_000;
 const MUX_OVERHEAD_BITRATE = 32_000;
-const ENCODING_PROFILE_VERSION = 2;
+const ENCODING_PROFILE_VERSION = 3;
 
 export async function cleanupOrphanedCacheFiles(cacheDir: string): Promise<number> {
   await mkdir(cacheDir, { recursive: true });
@@ -157,7 +157,8 @@ export function ffmpegArgs(
   config: Config,
   encoder: HardwareEncoder = "vaapi-qvbr",
   targetVideoBitrate?: number,
-  hardwareDecode = true
+  hardwareDecode = true,
+  targetDisplayAspectRatio?: string
 ): string[] {
   if (encoder === "vaapi-qvbr" && targetVideoBitrate === undefined) {
     throw new Error("QVBR requires a target video bitrate");
@@ -197,6 +198,7 @@ export function ffmpegArgs(
     "-c", "copy",
     ...filterArgs,
     ...encoderArgs,
+    ...(targetDisplayAspectRatio ? [`-aspect:${videoStreamIndex}`, targetDisplayAspectRatio] : []),
     "-max_muxing_queue_size", "4096",
     ...(path.extname(output).toLowerCase() === ".m4v" ? ["-f", "mp4"] : []),
     output
@@ -267,11 +269,12 @@ export class Optimizer {
       }
       const mode = this.encoder === "vaapi-qvbr" ? `VAAPI QVBR at ${mbps(qvbrTarget!.videoBitrate)}` : "VAAPI CQP";
       log("TRANSCODE", `Starting Intel hardware HEVC transcode using ${mode} ${quote(source)}`);
+      const targetAspect = targetAspectRatio(check.videoStream);
       const transcode = async (hardwareDecode: boolean) => {
         const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds }) => {
           log("PROGRESS", formatProgressMessage(percent, etaSeconds, source));
         }, undefined, frameRate(check.videoStream.avg_frame_rate));
-        await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput!, check.videoStream.index, this.config, this.encoder, qvbrTarget?.videoBitrate, hardwareDecode), this.signal, reportProgress);
+        await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput!, check.videoStream.index, this.config, this.encoder, qvbrTarget?.videoBitrate, hardwareDecode, targetAspect.display), this.signal, reportProgress);
         if (this.signal?.aborted) throw this.signal.reason;
         const output = await probe(cacheOutput!);
         const validationErrors = validateTranscode(input, output);

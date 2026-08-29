@@ -1,6 +1,63 @@
 import { run } from "./process.js";
 import { ProbeResult, ProbeStream } from "./types.js";
 
+export interface AspectTarget {
+  sample?: string;
+  display?: string;
+}
+
+const STANDARD_SQUARE_PIXEL_FRAMES = new Set([
+  "1280x720", "720x1280",
+  "1920x1080", "1080x1920",
+  "2560x1440", "1440x2560",
+  "3840x2160", "2160x3840",
+  "7680x4320", "4320x7680"
+]);
+
+function greatestCommonDivisor(left: number, right: number): number {
+  let a = Math.abs(left);
+  let b = Math.abs(right);
+  while (b !== 0) [a, b] = [b, a % b];
+  return a || 1;
+}
+
+function ratioValue(value?: string): number | undefined {
+  if (!value || value === "N/A") return undefined;
+  const [numerator, denominator = 1] = value.split(/[:/]/).map(Number);
+  if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) return undefined;
+  return numerator / denominator;
+}
+
+function ratiosEqual(left?: string, right?: string): boolean {
+  const leftValue = ratioValue(left);
+  const rightValue = ratioValue(right);
+  return leftValue !== undefined && rightValue !== undefined && Math.abs(leftValue - rightValue) < 0.0001;
+}
+
+export function isStandardSquarePixelFrame(stream: ProbeStream): boolean {
+  return Boolean(stream.width && stream.height && STANDARD_SQUARE_PIXEL_FRAMES.has(`${stream.width}x${stream.height}`));
+}
+
+export function aspectRatioMatches(stream: ProbeStream, target: AspectTarget): boolean {
+  return (!target.sample || ratiosEqual(target.sample, stream.sample_aspect_ratio))
+    && (!target.display || ratiosEqual(target.display, stream.display_aspect_ratio));
+}
+
+export function targetAspectRatio(stream: ProbeStream): AspectTarget {
+  const { width, height } = stream;
+  if (width && height && isStandardSquarePixelFrame(stream)) {
+    const divisor = greatestCommonDivisor(width, height);
+    return {
+      sample: "1:1",
+      display: `${width / divisor}:${height / divisor}`
+    };
+  }
+  return {
+    sample: ratioValue(stream.sample_aspect_ratio) === undefined ? undefined : stream.sample_aspect_ratio,
+    display: ratioValue(stream.display_aspect_ratio) === undefined ? undefined : stream.display_aspect_ratio
+  };
+}
+
 export async function probe(file: string): Promise<ProbeResult> {
   const { stdout } = await run("ffprobe", [
     "-v", "error",
@@ -107,9 +164,14 @@ export function validateTranscode(input: ProbeResult, output: ProbeResult): stri
     if (inputVideo.width !== outputVideo.width || inputVideo.height !== outputVideo.height) {
       errors.push(`video dimensions changed (${inputVideo.width}x${inputVideo.height} to ${outputVideo.width}x${outputVideo.height})`);
     }
-    if (inputVideo.display_aspect_ratio && inputVideo.display_aspect_ratio !== outputVideo.display_aspect_ratio) {
-      errors.push(`display aspect ratio changed (${inputVideo.display_aspect_ratio} to ${outputVideo.display_aspect_ratio ?? "unknown"})`);
+    const expectedAspect = targetAspectRatio(inputVideo);
+    if (expectedAspect.sample && !ratiosEqual(expectedAspect.sample, outputVideo.sample_aspect_ratio)) {
+      errors.push(`sample aspect ratio is incorrect (expected ${expectedAspect.sample}, got ${outputVideo.sample_aspect_ratio ?? "unknown"})`);
     }
+    if (expectedAspect.display && !ratiosEqual(expectedAspect.display, outputVideo.display_aspect_ratio)) {
+      errors.push(`display aspect ratio is incorrect (expected ${expectedAspect.display}, got ${outputVideo.display_aspect_ratio ?? "unknown"})`);
+    }
+
     const beforeRate = frameRate(inputVideo.avg_frame_rate);
     const afterRate = frameRate(outputVideo.avg_frame_rate);
     if (beforeRate !== undefined && (afterRate === undefined || Math.abs(beforeRate - afterRate) > 0.001)) {

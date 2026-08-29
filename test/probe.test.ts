@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eligibility, hdrReason, mediaDuration, validateTranscode } from "../src/probe.js";
+import { eligibility, hdrReason, mediaDuration, targetAspectRatio, validateTranscode } from "../src/probe.js";
 import { ProbeResult, ProbeStream } from "../src/types.js";
 
 const video = (overrides: Partial<ProbeStream> = {}): ProbeStream => ({
@@ -9,6 +9,7 @@ const video = (overrides: Partial<ProbeStream> = {}): ProbeStream => ({
   codec_name: "h264",
   width: 1920,
   height: 1080,
+  sample_aspect_ratio: "1:1",
   display_aspect_ratio: "16:9",
   avg_frame_rate: "24000/1001",
   color_primaries: "bt709",
@@ -109,4 +110,28 @@ test("rejects changes to core picture characteristics", () => {
   assert.ok(errors.some((error) => error.includes("dimensions changed")));
   assert.ok(errors.some((error) => error.includes("frame rate changed")));
   assert.ok(errors.some((error) => error.includes("color_space changed")));
+});
+
+test("normalizes standard HD frames to square pixels", () => {
+  assert.deepEqual(targetAspectRatio(video({
+    sample_aspect_ratio: "533:360",
+    display_aspect_ratio: "1066:405"
+  })), { sample: "1:1", display: "16:9" });
+});
+
+test("preserves anamorphic aspect ratios for nonstandard frame dimensions", () => {
+  assert.deepEqual(targetAspectRatio(video({
+    width: 1440,
+    height: 1080,
+    sample_aspect_ratio: "4:3",
+    display_aspect_ratio: "16:9"
+  })), { sample: "4:3", display: "16:9" });
+});
+
+test("rejects malformed aspect metadata on standard HD output", () => {
+  const input = media(video({ sample_aspect_ratio: "533:360", display_aspect_ratio: "1066:405" }));
+  const output = media(video({ codec_name: "hevc", sample_aspect_ratio: "533:360", display_aspect_ratio: "1066:405" }));
+  const errors = validateTranscode(input, output);
+  assert.ok(errors.some((error) => error.includes("sample aspect ratio is incorrect")));
+  assert.ok(errors.some((error) => error.includes("display aspect ratio is incorrect")));
 });

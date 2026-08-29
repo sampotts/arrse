@@ -20,7 +20,8 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - Ships checksum-pinned FFmpeg 9.0.1 built with Intel oneVPL and VAAPI support.
 - Runs hardware QVBR and CQP self-tests before scanning when `DRY_RUN=false`. If both modes fail, scanning remains paused and the tests retry once per minute without restarting the container.
 - Writes the transcode to `/cache`, then validates it with `ffprobe`. Validation checks HEVC video, copied audio/subtitle/attachment codecs and counts, chapter count, and duration.
-- Rejects outputs whose resolution, display aspect ratio, frame rate, or SDR color signaling differs from the source.
+- Normalizes standard HD/UHD frame sizes to square pixels and their natural display ratio. Nonstandard and anamorphic frame sizes retain their declared aspect ratio.
+- Rejects outputs whose resolution, sample/display aspect ratio, frame rate, or SDR color signaling is incorrect.
 - Checks the source size and modification time again before replacement, preventing replacement if another program changed it during encoding.
 - Copies the validated output to a hidden file beside the source, validates that staged copy again, flushes it, and atomically renames it over the source. The original is never explicitly deleted.
 - Requires the configured savings threshold (15% by default) before staging a replacement.
@@ -135,3 +136,19 @@ The published Arrse image is public, so Compose can pull it without a registry l
 ## Recovery notes
 
 An interrupted encode only leaves a uniquely named file in `/cache`, which the next job does not reuse. An interruption during same-filesystem staging may leave a hidden `.arrse-*.tmp` file beside the source; the original path remains intact unless the final atomic rename completed. Such stale hidden files can be inspected and removed manually.
+
+Audit a file or directory recursively for malformed aspect metadata without changing anything:
+
+```sh
+docker exec arrse node dist/src/audit-aspect.js \
+  "/data/path/to/library"
+```
+
+Already-converted HEVC files with malformed aspect metadata can be repaired without transcoding their video, audio, or subtitle streams:
+
+```sh
+docker exec arrse node dist/src/repair-aspect.js \
+  "/data/path/to/affected-file.mp4"
+```
+
+Multiple files may be supplied in one command. Repair is limited to recognized square-pixel HD/UHD frame sizes. Arrse writes the stream-copy result to `/cache`, validates its streams, dimensions, aspect ratio, chapters, and duration, stages it beside the source, and only then replaces the original atomically. An error leaves the original in place.

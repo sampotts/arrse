@@ -13,7 +13,7 @@ const config: Config = {
 };
 
 test("QVBR uses a per-file bitrate with zero-copy VAAPI and copies everything else", () => {
-  const args = ffmpegArgs("/media/show.mkv", "/cache/out.mkv", 2, config, "vaapi-qvbr", 4_000_000);
+  const args = ffmpegArgs("/media/show.mkv", "/cache/out.mkv", 2, config, "vaapi-qvbr", 4_000_000, true, "16:9");
   assert.ok(args.includes("hevc_vaapi"));
   assert.ok(args.includes("copy"));
   assert.ok(args.includes("-map_metadata"));
@@ -30,6 +30,7 @@ test("QVBR uses a per-file bitrate with zero-copy VAAPI and copies everything el
   assert.match(args.join(" "), /renderD128/);
   assert.equal(args[args.indexOf("-progress") + 1], "pipe:1");
   assert.ok(args.includes("-nostats"));
+  assert.equal(args[args.indexOf("-aspect:2") + 1], "16:9");
 });
 
 test("QVBR self-test matches the supported Tiger Lake mode", () => {

@@ -1,4 +1,4 @@
-export type LogStatus = "SCAN" | "SKIP" | "TRANSCODE" | "PROGRESS" | "VALIDATE" | "SAVED" | "ERROR" | "INFO";
+export type LogStatus = "SCAN" | "AUDIT" | "SKIP" | "TRANSCODE" | "PROGRESS" | "VALIDATE" | "SAVED" | "ERROR" | "INFO";
 
 export function quote(value: string): string {
   return JSON.stringify(value);
