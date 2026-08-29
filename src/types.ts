@@ -34,6 +34,8 @@ export interface ProbeStream {
   pix_fmt?: string;
   width?: number;
   height?: number;
+  coded_width?: number;
+  coded_height?: number;
   sample_aspect_ratio?: string;
   display_aspect_ratio?: string;
   avg_frame_rate?: string;

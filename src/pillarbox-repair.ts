@@ -7,7 +7,7 @@ import { contentVideoStreams, frameRate, mediaDuration, probe, validateTranscode
 import { run } from "./process.js";
 import { createMilestoneProgress, formatBytes, formatProgressMessage } from "./progress.js";
 import { safelyReplace } from "./replace.js";
-import { ProbeResult } from "./types.js";
+import { ProbeResult, ProbeStream } from "./types.js";
 
 export interface PillarboxGeometry {
   expectedWidth: number;
@@ -57,6 +57,15 @@ export function pillarboxTargets(geometry: PillarboxGeometry): { activeWidth: nu
     // the visible dimensions, so target DAR is based on the coded frame here.
     muxAspect: reducedRatio(geometry.expectedWidth * sarNumerator, geometry.expectedHeight * sarDenominator)
   };
+}
+
+export function pillarboxInputState(video: ProbeStream, geometry: PillarboxGeometry): "needs-crop" | "metadata-cropped" | "repaired" | "unsupported" {
+  const target = pillarboxTargets(geometry);
+  if (video.width === geometry.expectedWidth && video.height === geometry.expectedHeight) return "needs-crop";
+  if (video.width !== target.activeWidth || video.height !== geometry.expectedHeight) return "unsupported";
+  if (video.coded_width === geometry.expectedWidth) return "metadata-cropped";
+  if (video.coded_width !== undefined) return "repaired";
+  return "unsupported";
 }
 
 export function detectHorizontalBounds(frame: Uint8Array, width: number, height: number): HorizontalBounds {
@@ -158,9 +167,13 @@ export async function repairPillarbox(source: string, geometry: PillarboxGeometr
   if (video.codec_name !== "hevc") throw new Error(`video codec is ${video.codec_name ?? "unknown"}, not HEVC`);
   if (geometry.cropLeft % 2 !== 0 || geometry.cropRight % 2 !== 0) throw new Error("4:2:0 HEVC crop offsets must be even");
   const target = pillarboxTargets(geometry);
-  const inputAlreadyCropped = video.width === target.activeWidth && video.height === geometry.expectedHeight;
-  const inputNeedsCrop = video.width === geometry.expectedWidth && video.height === geometry.expectedHeight;
-  if (!inputAlreadyCropped && !inputNeedsCrop) {
+  const inputState = pillarboxInputState(video, geometry);
+  if (inputState === "repaired") {
+    throw new Error(`video is already physically repaired at ${video.width}x${video.height}`);
+  }
+  const inputAlreadyCropped = inputState === "metadata-cropped";
+  const inputNeedsCrop = inputState === "needs-crop";
+  if (inputState === "unsupported") {
     throw new Error(`visible dimensions are ${video.width}x${video.height}; expected ${geometry.expectedWidth}x${geometry.expectedHeight} or ${target.activeWidth}x${geometry.expectedHeight}`);
   }
 

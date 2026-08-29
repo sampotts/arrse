@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { detectHorizontalBounds, pillarboxRepairArgs, pillarboxTargets } from "../src/pillarbox-repair.js";
+import { detectHorizontalBounds, pillarboxInputState, pillarboxRepairArgs, pillarboxTargets } from "../src/pillarbox-repair.js";
 
 const geometry = {
   expectedWidth: 1920,
@@ -33,6 +33,22 @@ test("re-encodes an already metadata-cropped input without cropping it twice", (
   const args = pillarboxRepairArgs("/media/input.mp4", "/cache/output.mp4", 0, geometry, true);
   assert.equal(args[args.indexOf("-filter:0") + 1], "setsar=64/45,format=nv12,hwupload");
 });
+
+test("distinguishes pending, metadata-only and completed physical repairs", () => {
+  assert.equal(pillarboxInputState(
+    { index: 0, width: 1920, height: 1080, coded_width: 1920 },
+    geometry
+  ), "needs-crop");
+  assert.equal(pillarboxInputState(
+    { index: 0, width: 1350, height: 1080, coded_width: 1920 },
+    geometry
+  ), "metadata-cropped");
+  assert.equal(pillarboxInputState(
+    { index: 0, width: 1350, height: 1080, coded_width: 1350 },
+    geometry
+  ), "repaired");
+});
+
 
 test("detects horizontal black borders in a grayscale frame", () => {
   const width = 12;
