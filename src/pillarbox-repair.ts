@@ -169,7 +169,8 @@ export async function repairPillarbox(source: string, geometry: PillarboxGeometr
   const target = pillarboxTargets(geometry);
   const inputState = pillarboxInputState(video, geometry);
   if (inputState === "repaired") {
-    throw new Error(`video is already physically repaired at ${video.width}x${video.height}`);
+    log("SKIP", `Video is already physically repaired at ${video.width}x${video.height} ${quote(source)}`);
+    return;
   }
   const inputAlreadyCropped = inputState === "metadata-cropped";
   const inputNeedsCrop = inputState === "needs-crop";
