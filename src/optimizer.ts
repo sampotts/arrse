@@ -198,6 +198,7 @@ export function ffmpegArgs(
     "-c", "copy",
     ...filterArgs,
     ...encoderArgs,
+    `-fps_mode:${videoStreamIndex}`, "passthrough",
     ...(targetDisplayAspectRatio ? [`-aspect:${videoStreamIndex}`, targetDisplayAspectRatio] : []),
     "-max_muxing_queue_size", "4096",
     ...(path.extname(output).toLowerCase() === ".m4v" ? ["-f", "mp4"] : []),

@@ -30,6 +30,7 @@ test("QVBR uses a per-file bitrate with zero-copy VAAPI and copies everything el
   assert.match(args.join(" "), /renderD128/);
   assert.equal(args[args.indexOf("-progress") + 1], "pipe:1");
   assert.ok(args.includes("-nostats"));
+  assert.equal(args[args.indexOf("-fps_mode:2") + 1], "passthrough");
   assert.equal(args[args.indexOf("-aspect:2") + 1], "16:9");
 });
 

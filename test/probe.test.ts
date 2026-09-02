@@ -92,11 +92,29 @@ test("prefers content-video duration over misleading container duration", () => 
   assert.equal(mediaDuration(input), 1157.48);
 });
 
+test("uses agreeing timing evidence instead of bogus stream durations", () => {
+  const input = media(video({ duration: "64.73", tags: { DURATION: "00:30:00.000000000" } }), "1800");
+  input.streams[1].duration = "1800";
+  assert.equal(mediaDuration(input), 1800);
+});
+
+test("uses nominal cadence when container arithmetic distorts average frame rate", () => {
+  const input = media(video({ avg_frame_rate: "213445/6441", r_frame_rate: "25/1" }));
+  const output = media(video({ codec_name: "hevc", avg_frame_rate: "804775/32198", r_frame_rate: "25/1" }));
+  assert.deepEqual(validateTranscode(input, output), []);
+});
+
+test("accepts agreeing container durations when stream durations are bogus", () => {
+  const input = media(video({ duration: "64.73" }), "1800");
+  const output = media(video({ codec_name: "hevc", duration: "28.75" }), "1800.4");
+  assert.deepEqual(validateTranscode(input, output), []);
+});
+
+
 test("validates codec, copied streams, chapters and duration", () => {
   const input = media(video());
   const output = media(video({ codec_name: "hevc" }), "100.4");
   assert.deepEqual(validateTranscode(input, output), []);
-
   output.streams[1].codec_name = "opus";
   output.chapters = [];
   output.format!.duration = "90";

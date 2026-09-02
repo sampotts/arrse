@@ -137,12 +137,56 @@ export function eligibility(result: ProbeResult): { eligible: true; videoStream:
   return { eligible: true, videoStream: video };
 }
 
+function positiveDuration(value?: string): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+function clockDuration(value?: string): number | undefined {
+  const match = value?.match(/^(\d+):([0-5]\d):([0-5]\d(?:\.\d+)?)$/);
+  if (!match) return undefined;
+  return Number(match[1]) * 3600 + Number(match[2]) * 60 + Number(match[3]);
+}
+
+function taggedDurations(stream: ProbeStream): number[] {
+  if (!stream.tags) return [];
+  return Object.entries(stream.tags)
+    .filter(([key]) => key.toUpperCase() === "DURATION" || key.toUpperCase().startsWith("DURATION-"))
+    .map(([, value]) => clockDuration(value))
+    .filter((value): value is number => value !== undefined);
+}
+
+function durationsAgree(left: number, right: number): boolean {
+  return Math.abs(left - right) <= Math.max(2, Math.min(left, right) * 0.01);
+}
+
 export function mediaDuration(result: ProbeResult): number {
-  const videoDuration = Number(contentVideoStreams(result)[0]?.duration);
-  if (Number.isFinite(videoDuration) && videoDuration > 0) return videoDuration;
-  const formatDuration = Number(result.format?.duration);
-  if (Number.isFinite(formatDuration) && formatDuration > 0) return formatDuration;
-  return Math.max(0, ...result.streams.map((stream) => Number(stream.duration) || 0));
+  const content = contentVideoStreams(result)[0];
+  const timedStreams = result.streams.filter((stream) =>
+    stream === content || stream.codec_type === "audio"
+  );
+  const candidates: number[] = [];
+  const contentDuration = positiveDuration(content?.duration);
+  if (contentDuration !== undefined) candidates.push(contentDuration);
+  for (const stream of timedStreams) candidates.push(...taggedDurations(stream));
+  for (const stream of timedStreams) {
+    const duration = positiveDuration(stream.duration);
+    if (duration !== undefined && stream !== content) candidates.push(duration);
+  }
+  const formatDuration = positiveDuration(result.format?.duration);
+  if (formatDuration !== undefined) candidates.push(formatDuration);
+  if (candidates.length === 0) return 0;
+
+  let best = candidates[0];
+  let bestSupport = 0;
+  for (const candidate of candidates) {
+    const support = candidates.filter((other) => durationsAgree(candidate, other)).length;
+    if (support > bestSupport) {
+      best = candidate;
+      bestSupport = support;
+    }
+  }
+  return best;
 }
 
 export function frameRate(value?: string): number | undefined {
@@ -150,6 +194,12 @@ export function frameRate(value?: string): number | undefined {
   const [numerator, denominator = 1] = value.split("/").map(Number);
   if (!Number.isFinite(numerator) || !Number.isFinite(denominator) || denominator === 0) return undefined;
   return numerator / denominator;
+}
+
+function validationFrameRate(stream: ProbeStream): { rate?: number; label?: string } {
+  const nominal = frameRate(stream.r_frame_rate);
+  if (nominal !== undefined) return { rate: nominal, label: stream.r_frame_rate };
+  return { rate: frameRate(stream.avg_frame_rate), label: stream.avg_frame_rate };
 }
 
 export function validateTranscode(input: ProbeResult, output: ProbeResult): string[] {
@@ -185,10 +235,10 @@ export function validateTranscode(input: ProbeResult, output: ProbeResult): stri
       errors.push(`display aspect ratio is incorrect (expected ${expectedAspect.display}, got ${outputVideo.display_aspect_ratio ?? "unknown"})`);
     }
 
-    const beforeRate = frameRate(inputVideo.avg_frame_rate);
-    const afterRate = frameRate(outputVideo.avg_frame_rate);
-    if (beforeRate !== undefined && (afterRate === undefined || Math.abs(beforeRate - afterRate) > 0.001)) {
-      errors.push(`frame rate changed (${inputVideo.avg_frame_rate} to ${outputVideo.avg_frame_rate ?? "unknown"})`);
+    const beforeRate = validationFrameRate(inputVideo);
+    const afterRate = validationFrameRate(outputVideo);
+    if (beforeRate.rate !== undefined && (afterRate.rate === undefined || Math.abs(beforeRate.rate - afterRate.rate) > 0.001)) {
+      errors.push(`frame rate changed (${beforeRate.label} to ${afterRate.label ?? "unknown"})`);
     }
     for (const field of ["color_primaries", "color_transfer", "color_space"] as const) {
       if (inputVideo[field] && inputVideo[field] !== outputVideo[field]) {
@@ -211,8 +261,15 @@ export function validateTranscode(input: ProbeResult, output: ProbeResult): stri
   if ((input.chapters?.length ?? 0) !== (output.chapters?.length ?? 0)) errors.push("chapter count changed");
   const inputDuration = mediaDuration(input);
   const outputDuration = mediaDuration(output);
-  if (inputDuration <= 0 || outputDuration <= 0) errors.push("duration is missing or zero");
-  else if (Math.abs(inputDuration - outputDuration) > Math.max(2, inputDuration * 0.01)) {
+  const inputFormatDuration = positiveDuration(input.format?.duration);
+  const outputFormatDuration = positiveDuration(output.format?.duration);
+  const selectedDurationsMatch = inputDuration > 0 && outputDuration > 0 && durationsAgree(inputDuration, outputDuration);
+  const formatDurationsMatch = inputFormatDuration !== undefined
+    && outputFormatDuration !== undefined
+    && durationsAgree(inputFormatDuration, outputFormatDuration);
+  if ((inputDuration <= 0 && inputFormatDuration === undefined) || (outputDuration <= 0 && outputFormatDuration === undefined)) {
+    errors.push("duration is missing or zero");
+  } else if (!selectedDurationsMatch && !formatDurationsMatch) {
     errors.push(`duration changed from ${inputDuration.toFixed(2)}s to ${outputDuration.toFixed(2)}s`);
   }
   return errors;

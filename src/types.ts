@@ -39,6 +39,7 @@ export interface ProbeStream {
   sample_aspect_ratio?: string;
   display_aspect_ratio?: string;
   avg_frame_rate?: string;
+  r_frame_rate?: string;
   disposition?: Record<string, number>;
   tags?: Record<string, string>;
   side_data_list?: Array<Record<string, unknown>>;
