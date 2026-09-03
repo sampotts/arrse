@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { loadConfig } from "../src/config.js";
 
-const managed = ["INPUT_PATHS", "CACHE_DIR", "CONFIG_DIR", "WORKERS", "DRY_RUN", "SCAN_INTERVAL_MINUTES", "MIN_SAVINGS_PERCENT", "TARGET_SAVINGS_PERCENT", "QUALITY", "INTEL_DEVICE", "QSV_QUALITY", "QSV_DEVICE", "SONARR_URL", "SONARR_API_KEY", "RADARR_URL", "RADARR_API_KEY"];
+const managed = ["INPUT_PATHS", "CACHE_DIR", "CONFIG_DIR", "WORKERS", "DRY_RUN", "PROCESS_REMUX", "SCAN_INTERVAL_MINUTES", "MIN_SAVINGS_PERCENT", "TARGET_SAVINGS_PERCENT", "QUALITY", "INTEL_DEVICE", "QSV_QUALITY", "QSV_DEVICE", "SONARR_URL", "SONARR_API_KEY", "RADARR_URL", "RADARR_API_KEY"];
 
 test("safe defaults include dry-run and two workers", () => {
   const saved = Object.fromEntries(managed.map((key) => [key, process.env[key]]));
@@ -11,6 +11,7 @@ test("safe defaults include dry-run and two workers", () => {
     process.env.INPUT_PATHS = '["/input"]';
     const config = loadConfig();
     assert.equal(config.dryRun, true);
+    assert.equal(config.processRemux, false);
     assert.equal(config.workers, 2);
     assert.deepEqual(config.inputPaths, ["/input"]);
     assert.equal(config.minSavingsPercent, 15);
@@ -22,6 +23,20 @@ test("safe defaults include dry-run and two workers", () => {
       if (saved[key] === undefined) delete process.env[key];
       else process.env[key] = saved[key];
     }
+  }
+});
+
+test("allows remux processing to be explicitly enabled", () => {
+  const saved = Object.fromEntries(managed.map((key) => [key, process.env[key]]));
+  try {
+    for (const key of managed) delete process.env[key];
+    process.env.INPUT_PATHS = '["/input"]';
+    process.env.PROCESS_REMUX = "true";
+    assert.equal(loadConfig().processRemux, true);
+    process.env.PROCESS_REMUX = "sometimes";
+    assert.throws(loadConfig, /PROCESS_REMUX must be true or false/);
+  } finally {
+    for (const key of managed) saved[key] === undefined ? delete process.env[key] : process.env[key] = saved[key]!;
   }
 });
 

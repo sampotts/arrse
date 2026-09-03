@@ -32,7 +32,7 @@ async function main(): Promise<void> {
   const orphanedCacheFiles = await cleanupOrphanedCacheFiles(config.cacheDir);
   if (orphanedCacheFiles > 0) log("INFO", `Removed ${orphanedCacheFiles} orphaned cache output${orphanedCacheFiles === 1 ? "" : "s"}.`);
   let encoder: HardwareEncoder = "vaapi-qvbr";
-  log("INFO", `Arrse started. Input paths: ${config.inputPaths.map(quote).join(", ")}. Workers: ${config.workers}. Dry run: ${config.dryRun}. Scan interval: ${config.scanIntervalMinutes} minutes.`);
+  log("INFO", `Arrse started. Input paths: ${config.inputPaths.map(quote).join(", ")}. Workers: ${config.workers}. Dry run: ${config.dryRun}. Process remuxes: ${config.processRemux}. Scan interval: ${config.scanIntervalMinutes} minutes.`);
   if (!config.dryRun) {
     while (!stopping) {
       try {

@@ -3,14 +3,33 @@ import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { calculateQvbrTarget, cleanupOrphanedCacheFiles, ffmpegArgs, savingsWithinSafetyLimit, vaapiCqpSelfTestArgs, vaapiQvbrSelfTestArgs } from "../src/optimizer.js";
+import { calculateQvbrTarget, cleanupOrphanedCacheFiles, ffmpegArgs, isRemuxSource, savingsWithinSafetyLimit, vaapiCqpSelfTestArgs, vaapiQvbrSelfTestArgs } from "../src/optimizer.js";
 import { Config } from "../src/types.js";
 
 const config: Config = {
   inputPaths: ["/input"], cacheDir: "/cache", configDir: "/config",
-  workers: 2, dryRun: true, scanIntervalMinutes: 60, minSavingsPercent: 15, targetSavingsPercent: 20,
+  workers: 2, dryRun: true, processRemux: false, scanIntervalMinutes: 60, minSavingsPercent: 15, targetSavingsPercent: 20,
   quality: 20, device: "/dev/dri/renderD128"
 };
+
+test("identifies common remux filenames and embedded release titles", () => {
+  assert.equal(isRemuxSource("/movies/Film.2025.1080p.BluRay.REMUX.AVC.mkv"), true);
+  assert.equal(isRemuxSource("/movies/Film.2025.BDRemux.mkv"), true);
+  assert.equal(isRemuxSource("/movies/Film.2025.BluRayRemux.mkv"), true);
+  assert.equal(isRemuxSource("/movies/Film.2025.WEBDL-1080p.h264.mkv", {
+    streams: [],
+    format: { tags: { title: "Film 2025 UHD REMUX" } }
+  }), true);
+});
+
+test("does not mistake ordinary encodes or words containing remux for remux releases", () => {
+  assert.equal(isRemuxSource("/movies/Film.2025.WEBDL-1080p.h264.mkv"), false);
+  assert.equal(isRemuxSource("/movies/The.Remuxing.Guide.2025.WEBRip.mkv"), false);
+  assert.equal(isRemuxSource("/movies/Film.2025.WEBRip.mkv", {
+    streams: [],
+    format: { tags: { title: "A remuxed documentary" } }
+  }), false);
+});
 
 test("QVBR uses a per-file bitrate with zero-copy VAAPI and copies everything else", () => {
   const args = ffmpegArgs("/media/show.mkv", "/cache/out.mkv", 2, config, "vaapi-qvbr", 4_000_000, true, "16:9");

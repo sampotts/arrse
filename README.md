@@ -11,6 +11,7 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - Recursively scans common containers: MKV, MP4, M4V, MOV, TS, and M2TS.
 - Only accepts files with exactly one non-artwork H.264 video stream.
 - Skips HEVC, AV1, PQ, HLG, Dolby Vision, HDR10+, and streams carrying HDR mastering metadata.
+- Skips remux sources by default using common filename and embedded-title markers; set `PROCESS_REMUX=true` to opt in.
 - Maps every input stream. Audio, subtitle, attachment, and data streams are stream-copied; chapters and metadata are mapped from the source.
 - Uses zero-copy VAAPI hardware H.264 decoding and `hevc_vaapi` HEVC encoding on the Intel GPU.
 - Prefers QVBR rate control, targeting a useful whole-file reduction while using the quality setting as a quality bound. If the driver does not expose QVBR, Arrse automatically falls back to CQP.
@@ -71,6 +72,7 @@ docker exec arrse ffmpeg -hide_banner -encoders
 |---|---:|---|
 | `ARRSE_IMAGE` | `ghcr.io/sampotts/arrse:latest` | Container image; pin a version for reproducible deployments |
 | `DRY_RUN` | `true` | Report eligible files without transcoding |
+| `PROCESS_REMUX` | `false` | Process remux sources; disabled by default to preserve original disc quality |
 | `WORKERS` | `2` | Maximum concurrent transcodes (1–32) |
 | `SCAN_INTERVAL_MINUTES` | `60` | Delay between scans; `0` runs once and exits |
 | `MIN_SAVINGS_PERCENT` | `15` | Minimum reduction required for replacement |

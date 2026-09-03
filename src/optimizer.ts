@@ -22,6 +22,23 @@ export function savingsWithinSafetyLimit(savingsPercent: number): boolean {
   return savingsPercent <= MAX_SAVINGS_PERCENT;
 }
 
+const REMUX_PATTERN = /(?:^|[^a-z0-9])(?:remux|bdremux)(?=$|[^a-z0-9])|(?:blu[\s._-]*ray|uhd)[\s._-]*remux/i;
+
+function identifyingMetadata(tags?: Record<string, string>): string[] {
+  if (!tags) return [];
+  return Object.entries(tags)
+    .filter(([key]) => ["TITLE", "FILENAME", "ORIGINAL_FILENAME"].includes(key.toUpperCase()))
+    .map(([, value]) => value);
+}
+
+export function isRemuxSource(source: string, input?: import("./types.js").ProbeResult): boolean {
+  const names = [path.basename(source)];
+  if (input) {
+    names.push(...identifyingMetadata(input.format?.tags));
+    for (const stream of input.streams) names.push(...identifyingMetadata(stream.tags));
+  }
+  return names.some((name) => REMUX_PATTERN.test(name));
+}
 
 export async function cleanupOrphanedCacheFiles(cacheDir: string): Promise<number> {
   await mkdir(cacheDir, { recursive: true });
@@ -219,7 +236,7 @@ function shouldRetryWithSoftwareDecode(error: unknown): boolean {
 }
 
 function encodingProfile(config: Config, encoder: HardwareEncoder): string {
-  return `v${ENCODING_PROFILE_VERSION}:${encoder}:quality=${config.quality}:target=${config.targetSavingsPercent}:minimum=${config.minSavingsPercent}`;
+  return `v${ENCODING_PROFILE_VERSION}:${encoder}:quality=${config.quality}:target=${config.targetSavingsPercent}:minimum=${config.minSavingsPercent}${config.processRemux ? ":remux=include" : ""}`;
 }
 
 function mbps(bitsPerSecond: number): string {
@@ -253,7 +270,17 @@ export class Optimizer {
         log("SKIP", `Unchanged file already processed ${quote(source)}`);
         return;
       }
+      if (!this.config.processRemux && isRemuxSource(source)) {
+        log("SKIP", `Remux source is excluded ${quote(source)}`);
+        await this.state.record(source, "not-smaller", "Remux source excluded", profile);
+        return;
+      }
       const input = await probe(source);
+      if (!this.config.processRemux && isRemuxSource(source, input)) {
+        log("SKIP", `Remux source is excluded ${quote(source)}`);
+        await this.state.record(source, "not-smaller", "Remux source excluded", profile);
+        return;
+      }
       const check = eligibility(input);
       if (!check.eligible) {
         const reason = check.reason.charAt(0).toUpperCase() + check.reason.slice(1);

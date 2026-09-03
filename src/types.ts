@@ -4,6 +4,7 @@ export interface Config {
   configDir: string;
   workers: number;
   dryRun: boolean;
+  processRemux: boolean;
   scanIntervalMinutes: number;
   minSavingsPercent: number;
   targetSavingsPercent: number;
