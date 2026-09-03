@@ -17,6 +17,11 @@ const CACHE_OUTPUT_PATTERN = /^[a-f0-9]{16}-[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9
 const MIN_QVBR_VIDEO_BITRATE = 250_000;
 const MUX_OVERHEAD_BITRATE = 32_000;
 const ENCODING_PROFILE_VERSION = 4;
+export const MAX_SAVINGS_PERCENT = 85;
+export function savingsWithinSafetyLimit(savingsPercent: number): boolean {
+  return savingsPercent <= MAX_SAVINGS_PERCENT;
+}
+
 
 export async function cleanupOrphanedCacheFiles(cacheDir: string): Promise<number> {
   await mkdir(cacheDir, { recursive: true });
@@ -86,7 +91,10 @@ export interface QvbrTarget {
 }
 
 export function calculateQvbrTarget(input: import("./types.js").ProbeResult, sourceSize: number, targetSavingsPercent: number): QvbrTarget | undefined {
-  const duration = mediaDuration(input);
+  const selectedDuration = mediaDuration(input);
+  const formatDuration = positiveNumber(input.format?.duration);
+  // A shorter duration produces a higher, safer bitrate when timing metadata conflicts.
+  const duration = formatDuration === undefined ? selectedDuration : Math.min(selectedDuration, formatDuration);
   if (!Number.isFinite(duration) || duration <= 0 || sourceSize <= 0) return undefined;
 
   const sourceTotalBitrate = (sourceSize * 8) / duration;
@@ -207,7 +215,7 @@ export function ffmpegArgs(
 }
 
 function shouldRetryWithSoftwareDecode(error: unknown): boolean {
-  return /Error reinitializing filters|Impossible to convert|Function not implemented|output must contain exactly one HEVC content video stream|duration changed/i.test(String(error));
+  return /Error reinitializing filters|Impossible to convert|Function not implemented|output must contain exactly one HEVC content video stream|duration changed|video packet count/i.test(String(error));
 }
 
 function encodingProfile(config: Config, encoder: HardwareEncoder): string {
@@ -292,7 +300,6 @@ export class Optimizer {
 
       if (this.signal?.aborted) throw this.signal.reason;
 
-      log("VALIDATE", `Validation complete ${quote(source)}`);
 
       const outputStat = await stat(cacheOutput);
       const savingsPercent = ((sourceStat.size - outputStat.size) / sourceStat.size) * 100;
@@ -301,6 +308,11 @@ export class Optimizer {
         await this.state.record(source, "not-smaller", formatSavingsDetail(savingsPercent), profile);
         return;
       }
+      if (!savingsWithinSafetyLimit(savingsPercent)) {
+        throw new Error(`suspicious ${savingsPercent.toFixed(2)}% size reduction exceeds the ${MAX_SAVINGS_PERCENT}% safety limit`);
+      }
+
+      log("VALIDATE", `Validation complete ${quote(source)}`);
 
       const currentSourceStat = await stat(source);
       if (currentSourceStat.size !== sourceStat.size || Math.trunc(currentSourceStat.mtimeMs) !== Math.trunc(sourceStat.mtimeMs)) {

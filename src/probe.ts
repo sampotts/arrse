@@ -72,6 +72,7 @@ export async function probe(file: string): Promise<ProbeResult> {
     "-show_streams",
     "-show_chapters",
     "-of", "json",
+    "-count_packets",
     file
   ]);
   const result = JSON.parse(stdout) as ProbeResult;
@@ -210,6 +211,15 @@ export function progressFrameRate(stream: ProbeStream): number | undefined {
   return nominal >= 48 ? nominal / 2 : nominal;
 }
 
+function videoPacketCount(stream: ProbeStream): number | undefined {
+  const count = Number(stream.nb_read_packets);
+  return Number.isSafeInteger(count) && count > 0 ? count : undefined;
+}
+
+function packetCountsAgree(input: number, output: number): boolean {
+  const tolerance = Math.max(2, Math.ceil(input * 0.001));
+  return Math.abs(input - output) <= tolerance;
+}
 
 function frameRateLabel(stream: ProbeStream): string {
   return `average ${stream.avg_frame_rate ?? "unknown"}, nominal ${stream.r_frame_rate ?? "unknown"}`;
@@ -270,6 +280,14 @@ export function validateTranscode(input: ProbeResult, output: ProbeResult): stri
     if (!cadenceMatches(inputVideo, outputVideo)) {
       errors.push(`frame rate changed (${frameRateLabel(inputVideo)} to ${frameRateLabel(outputVideo)})`);
     }
+    const inputPackets = videoPacketCount(inputVideo);
+    const outputPackets = videoPacketCount(outputVideo);
+    if (inputPackets === undefined || outputPackets === undefined) {
+      errors.push("video packet count is unavailable");
+    } else if (!packetCountsAgree(inputPackets, outputPackets)) {
+      errors.push(`video packet count changed (${inputPackets} to ${outputPackets})`);
+    }
+
     for (const field of ["color_primaries", "color_transfer", "color_space"] as const) {
       if (inputVideo[field] && inputVideo[field] !== outputVideo[field]) {
         errors.push(`${field} changed (${inputVideo[field]} to ${outputVideo[field] ?? "unknown"})`);

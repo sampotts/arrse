@@ -28,6 +28,7 @@ export interface ProbeStream {
   profile?: string;
   duration?: string;
   bit_rate?: string;
+  nb_read_packets?: string;
   color_transfer?: string;
   color_primaries?: string;
   color_space?: string;

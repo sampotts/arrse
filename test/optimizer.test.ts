@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { calculateQvbrTarget, cleanupOrphanedCacheFiles, ffmpegArgs, vaapiCqpSelfTestArgs, vaapiQvbrSelfTestArgs } from "../src/optimizer.js";
+import { calculateQvbrTarget, cleanupOrphanedCacheFiles, ffmpegArgs, savingsWithinSafetyLimit, vaapiCqpSelfTestArgs, vaapiQvbrSelfTestArgs } from "../src/optimizer.js";
 import { Config } from "../src/types.js";
 
 const config: Config = {
@@ -92,6 +92,22 @@ test("QVBR target accounts for copied streams and whole-file savings", () => {
   assert.equal(target.videoBitrate, 4_968_000);
 });
 
+test("QVBR uses the shorter duration when metadata conflicts", () => {
+  const input = {
+    streams: [
+      { index: 0, codec_type: "video", codec_name: "h264", duration: "7200" },
+      { index: 1, codec_type: "audio", codec_name: "ac3", duration: "7200" }
+    ],
+    format: { duration: "3600" }
+  };
+  const target = calculateQvbrTarget(input, 4_500_000_000, 20);
+  assert.ok(target);
+  assert.equal(target.sourceTotalBitrate, 10_000_000);
+});
+
+test("suspicious savings safety limit catches catastrophic undersized output", () => {
+  assert.equal(savingsWithinSafetyLimit(((4_790_000_000 - 375_840_000) / 4_790_000_000) * 100), false);
+});
 test("QVBR skips sources whose copied streams consume the size budget", () => {
   const input = {
     streams: [

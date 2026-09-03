@@ -11,6 +11,7 @@ const video = (overrides: Partial<ProbeStream> = {}): ProbeStream => ({
   height: 1080,
   sample_aspect_ratio: "1:1",
   display_aspect_ratio: "16:9",
+  nb_read_packets: "2400",
   avg_frame_rate: "24000/1001",
   color_primaries: "bt709",
   color_transfer: "bt709",
@@ -127,6 +128,18 @@ test("accepts agreeing container durations when stream durations are bogus", () 
   assert.deepEqual(validateTranscode(input, output), []);
 });
 
+test("rejects truncated video even when copied audio keeps the container duration intact", () => {
+  const input = media(video({ duration: "7800", nb_read_packets: "187013" }), "7800");
+  const output = media(video({ codec_name: "hevc", duration: "7800", nb_read_packets: "28142" }), "7800");
+  const errors = validateTranscode(input, output);
+  assert.ok(errors.some((error) => error.includes("video packet count changed")));
+});
+
+test("rejects output when video packet counts cannot be verified", () => {
+  const input = media(video({ nb_read_packets: undefined }));
+  const output = media(video({ codec_name: "hevc", nb_read_packets: undefined }));
+  assert.ok(validateTranscode(input, output).includes("video packet count is unavailable"));
+});
 
 test("validates codec, copied streams, chapters and duration", () => {
   const input = media(video());
