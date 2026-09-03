@@ -6,7 +6,8 @@ export function quote(value: string): string {
 
 export function log(status: LogStatus, message: string): void {
   const singleLineMessage = message.replace(/[\r\n]+/g, " ").trim();
-  const line = `${new Date().toISOString()} [${status}] ${singleLineMessage}`;
+  const decoratedMessage = status === "ERROR" && !singleLineMessage.startsWith("❌") ? `❌ ${singleLineMessage}` : singleLineMessage;
+  const line = `${new Date().toISOString()} [${status}] ${decoratedMessage}`;
   if (status === "ERROR") console.error(line);
   else console.log(line);
 }

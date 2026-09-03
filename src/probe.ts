@@ -196,10 +196,31 @@ export function frameRate(value?: string): number | undefined {
   return numerator / denominator;
 }
 
-function validationFrameRate(stream: ProbeStream): { rate?: number; label?: string } {
-  const nominal = frameRate(stream.r_frame_rate);
-  if (nominal !== undefined) return { rate: nominal, label: stream.r_frame_rate };
-  return { rate: frameRate(stream.avg_frame_rate), label: stream.avg_frame_rate };
+function ratesClose(left: number, right: number): boolean {
+  return Math.abs(left - right) / Math.max(left, right) < 0.005;
+}
+
+function frameRateLabel(stream: ProbeStream): string {
+  return `average ${stream.avg_frame_rate ?? "unknown"}, nominal ${stream.r_frame_rate ?? "unknown"}`;
+}
+
+function cadenceMatches(input: ProbeStream, output: ProbeStream): boolean {
+  const inputAverage = frameRate(input.avg_frame_rate);
+  const outputAverage = frameRate(output.avg_frame_rate);
+  const inputNominal = frameRate(input.r_frame_rate);
+  const outputNominal = frameRate(output.r_frame_rate);
+  if (inputAverage === undefined && inputNominal === undefined) return true;
+  if (inputAverage !== undefined && outputAverage !== undefined && ratesClose(inputAverage, outputAverage)) return true;
+  if (inputNominal !== undefined && outputNominal !== undefined && ratesClose(inputNominal, outputNominal)) return true;
+  if (inputNominal === undefined || outputNominal === undefined) return false;
+
+  const higher = Math.max(inputNominal, outputNominal);
+  const lower = Math.min(inputNominal, outputNominal);
+  if (!ratesClose(higher, lower * 2)) return false;
+  const averages = [inputAverage, outputAverage].filter((rate): rate is number => rate !== undefined);
+  const supportsLowerRate = averages.some((rate) => ratesClose(rate, lower));
+  const supportsHigherRate = averages.some((rate) => ratesClose(rate, higher));
+  return supportsLowerRate && !supportsHigherRate;
 }
 
 export function validateTranscode(input: ProbeResult, output: ProbeResult): string[] {
@@ -235,10 +256,8 @@ export function validateTranscode(input: ProbeResult, output: ProbeResult): stri
       errors.push(`display aspect ratio is incorrect (expected ${expectedAspect.display}, got ${outputVideo.display_aspect_ratio ?? "unknown"})`);
     }
 
-    const beforeRate = validationFrameRate(inputVideo);
-    const afterRate = validationFrameRate(outputVideo);
-    if (beforeRate.rate !== undefined && (afterRate.rate === undefined || Math.abs(beforeRate.rate - afterRate.rate) > 0.001)) {
-      errors.push(`frame rate changed (${beforeRate.label} to ${afterRate.label ?? "unknown"})`);
+    if (!cadenceMatches(inputVideo, outputVideo)) {
+      errors.push(`frame rate changed (${frameRateLabel(inputVideo)} to ${frameRateLabel(outputVideo)})`);
     }
     for (const field of ["color_primaries", "color_transfer", "color_space"] as const) {
       if (inputVideo[field] && inputVideo[field] !== outputVideo[field]) {

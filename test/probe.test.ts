@@ -104,6 +104,19 @@ test("uses nominal cadence when container arithmetic distorts average frame rate
   assert.deepEqual(validateTranscode(input, output), []);
 });
 
+test("accepts a 50 Hz field rate when actual output cadence remains 25 fps", () => {
+  const input = media(video({ avg_frame_rate: "213445/6441", r_frame_rate: "50/1" }));
+  const output = media(video({ codec_name: "hevc", avg_frame_rate: "804775/32198", r_frame_rate: "25/1" }));
+  assert.deepEqual(validateTranscode(input, output), []);
+});
+
+test("rejects an actual 50 to 25 fps conversion", () => {
+  const input = media(video({ avg_frame_rate: "50/1", r_frame_rate: "50/1" }));
+  const output = media(video({ codec_name: "hevc", avg_frame_rate: "25/1", r_frame_rate: "25/1" }));
+  assert.ok(validateTranscode(input, output).some((error) => error.includes("frame rate changed")));
+});
+
+
 test("accepts agreeing container durations when stream durations are bogus", () => {
   const input = media(video({ duration: "64.73" }), "1800");
   const output = media(video({ codec_name: "hevc", duration: "28.75" }), "1800.4");
