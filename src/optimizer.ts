@@ -3,7 +3,7 @@ import { mkdir, opendir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { notifyArrFiles } from "./arr.js";
 import { log, quote } from "./logger.js";
-import { eligibility, frameRate, mediaDuration, probe, targetAspectRatio, validateTranscode } from "./probe.js";
+import { eligibility, mediaDuration, probe, progressFrameRate, targetAspectRatio, validateTranscode } from "./probe.js";
 import { createMilestoneProgress, formatProgressMessage, formatSavedResult, formatSavingsDetail, formatSkippedResult } from "./progress.js";
 import { run } from "./process.js";
 import { safelyReplace } from "./replace.js";
@@ -274,7 +274,7 @@ export class Optimizer {
       const transcode = async (hardwareDecode: boolean) => {
         const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds }) => {
           log("PROGRESS", formatProgressMessage(percent, etaSeconds, source));
-        }, undefined, frameRate(check.videoStream.avg_frame_rate));
+        }, undefined, progressFrameRate(check.videoStream));
         await this.runner("ffmpeg", ffmpegArgs(source, cacheOutput!, check.videoStream.index, this.config, this.encoder, qvbrTarget?.videoBitrate, hardwareDecode, targetAspect.display), this.signal, reportProgress);
         if (this.signal?.aborted) throw this.signal.reason;
         const output = await probe(cacheOutput!);

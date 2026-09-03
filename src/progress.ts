@@ -67,7 +67,8 @@ export function createMilestoneProgress(
   const report = (finished: boolean) => {
     if (!(totalSeconds > 0)) return;
     const videoSeconds = framesPerSecond && framesPerSecond > 0 ? encodedFrames / framesPerSecond : outputSeconds;
-    const actualPercent = finished ? 100 : Math.min(100, (videoSeconds / totalSeconds) * 100);
+    const calculatedPercent = Math.min(100, (videoSeconds / totalSeconds) * 100);
+    const actualPercent = finished && calculatedPercent >= 98 ? 100 : calculatedPercent;
     while (nextThreshold < thresholds.length && actualPercent >= thresholds[nextThreshold]) {
       const percent = thresholds[nextThreshold++];
       const elapsedSeconds = Math.max(0.001, (now() - startedAt) / 1000);

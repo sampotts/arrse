@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { mkdir, stat, unlink } from "node:fs/promises";
 import path from "node:path";
 import { log, quote } from "./logger.js";
-import { contentVideoStreams, frameRate, mediaDuration, probe, validateTranscode } from "./probe.js";
+import { contentVideoStreams, mediaDuration, probe, progressFrameRate, validateTranscode } from "./probe.js";
 import { run } from "./process.js";
 import { createMilestoneProgress, formatBytes, formatProgressMessage } from "./progress.js";
 import { safelyReplace } from "./replace.js";
@@ -196,7 +196,7 @@ export async function repairPillarbox(source: string, geometry: PillarboxGeometr
     log("TRANSCODE", `Starting high-quality Intel hardware pillarbox repair at QP ${geometry.quality ?? 16} ${quote(source)}`);
     const reportProgress = createMilestoneProgress(mediaDuration(input), ({ percent, etaSeconds }) => {
       log("PROGRESS", formatProgressMessage(percent, etaSeconds, source));
-    }, undefined, frameRate(video.avg_frame_rate));
+    }, undefined, progressFrameRate(video));
     await run("ffmpeg", pillarboxRepairArgs(source, cacheOutput, video.index, geometry, inputAlreadyCropped), undefined, reportProgress);
     const output = await probe(cacheOutput);
     const validationErrors = validateTranscode(expected, output);

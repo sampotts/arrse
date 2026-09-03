@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eligibility, hdrReason, mediaDuration, targetAspectRatio, validateTranscode } from "../src/probe.js";
+import { eligibility, hdrReason, mediaDuration, progressFrameRate, targetAspectRatio, validateTranscode } from "../src/probe.js";
 import { ProbeResult, ProbeStream } from "../src/types.js";
 
 const video = (overrides: Partial<ProbeStream> = {}): ProbeStream => ({
@@ -116,6 +116,10 @@ test("rejects an actual 50 to 25 fps conversion", () => {
   assert.ok(validateTranscode(input, output).some((error) => error.includes("frame rate changed")));
 });
 
+test("uses frame cadence rather than a misleading computed average for progress", () => {
+  assert.equal(progressFrameRate(video({ avg_frame_rate: "213445/6441", r_frame_rate: "50/1" })), 25);
+  assert.equal(progressFrameRate(video({ avg_frame_rate: "50/1", r_frame_rate: "50/1" })), 50);
+});
 
 test("accepts agreeing container durations when stream durations are bogus", () => {
   const input = media(video({ duration: "64.73" }), "1800");

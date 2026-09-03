@@ -38,6 +38,14 @@ test("uses encoded video frames instead of copied-stream timestamps", () => {
   assert.ok(Math.abs(milestones[0].etaSeconds - 28.46) < 0.01);
 });
 
+test("does not report completion when ffmpeg ends early", () => {
+  const milestones: ProgressMilestone[] = [];
+  const progress = createMilestoneProgress(3000, (value) => milestones.push(value), Date.now, 25);
+  progress("frame=19000\nprogress=continue\n");
+  progress("frame=29000\nprogress=end\n");
+  assert.deepEqual(milestones.map(({ percent }) => percent), [25]);
+});
+
 test("formats the concise progress log message", () => {
   assert.equal(formatProgressMessage(50, 434, "/path/to/file.mp4"), `50% (ETA 7m 14s) "/path/to/file.mp4"`);
   assert.equal(formatProgressMessage(100, 0, "/path/to/file.mp4"), `Done! "/path/to/file.mp4"`);

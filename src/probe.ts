@@ -200,6 +200,17 @@ function ratesClose(left: number, right: number): boolean {
   return Math.abs(left - right) / Math.max(left, right) < 0.005;
 }
 
+export function progressFrameRate(stream: ProbeStream): number | undefined {
+  const average = frameRate(stream.avg_frame_rate);
+  const nominal = frameRate(stream.r_frame_rate);
+  if (average === undefined) return nominal;
+  if (nominal === undefined || ratesClose(average, nominal)) return average;
+  // Interlaced material often advertises a 50 Hz field rate while carrying
+  // 25 complete frames per second. Odd computed averages are unreliable here.
+  return nominal >= 48 ? nominal / 2 : nominal;
+}
+
+
 function frameRateLabel(stream: ProbeStream): string {
   return `average ${stream.avg_frame_rate ?? "unknown"}, nominal ${stream.r_frame_rate ?? "unknown"}`;
 }
