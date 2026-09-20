@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { calculateQvbrTarget, cleanupOrphanedCacheFiles, ffmpegArgs, isRemuxSource, savingsWithinSafetyLimit, vaapiCqpSelfTestArgs, vaapiQvbrSelfTestArgs } from "../src/optimizer.js";
+import { calculateQvbrTarget, cleanupOrphanedCacheFiles, ffmpegArgs, isRemuxSource, jobErrorOutcome, OutputValidationError, savingsWithinSafetyLimit, vaapiCqpSelfTestArgs, vaapiQvbrSelfTestArgs } from "../src/optimizer.js";
 import { Config } from "../src/types.js";
 
 const config: Config = {
@@ -29,6 +29,11 @@ test("does not mistake ordinary encodes or words containing remux for remux rele
     streams: [],
     format: { tags: { title: "A remuxed documentary" } }
   }), false);
+});
+
+test("only deterministic output validation failures become terminal rejections", () => {
+  assert.equal(jobErrorOutcome(new OutputValidationError("video packet count changed")), "rejected");
+  assert.equal(jobErrorOutcome(new Error("ffmpeg device temporarily unavailable")), "error");
 });
 
 test("QVBR uses a per-file bitrate with zero-copy VAAPI and copies everything else", () => {

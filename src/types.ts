@@ -59,7 +59,7 @@ export interface ProbeResult {
   };
 }
 
-export type StateOutcome = "saved" | "not-smaller" | "dry-run" | "error";
+export type StateOutcome = "saved" | "not-smaller" | "rejected" | "dry-run" | "error";
 
 export interface StateEntry {
   size: number;

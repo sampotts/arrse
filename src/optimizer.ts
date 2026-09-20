@@ -9,7 +9,7 @@ import { run } from "./process.js";
 import { safelyReplace } from "./replace.js";
 import { scan } from "./scan.js";
 import { StateStore } from "./state.js";
-import { Config, HardwareEncoder } from "./types.js";
+import { Config, HardwareEncoder, StateOutcome } from "./types.js";
 
 export type Runner = typeof run;
 
@@ -239,6 +239,17 @@ function encodingProfile(config: Config, encoder: HardwareEncoder): string {
   return `v${ENCODING_PROFILE_VERSION}:${encoder}:quality=${config.quality}:target=${config.targetSavingsPercent}:minimum=${config.minSavingsPercent}${config.processRemux ? ":remux=include" : ""}`;
 }
 
+export class OutputValidationError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OutputValidationError";
+  }
+}
+
+export function jobErrorOutcome(error: unknown): StateOutcome {
+  return error instanceof OutputValidationError ? "rejected" : "error";
+}
+
 function mbps(bitsPerSecond: number): string {
   return `${(bitsPerSecond / 1_000_000).toFixed(2)} Mbps`;
 }
@@ -314,7 +325,7 @@ export class Optimizer {
         if (this.signal?.aborted) throw this.signal.reason;
         const output = await probe(cacheOutput!);
         const validationErrors = validateTranscode(input, output);
-        if (validationErrors.length > 0) throw new Error(validationErrors.join("; "));
+        if (validationErrors.length > 0) throw new OutputValidationError(validationErrors.join("; "));
       };
       try {
         await transcode(true);
@@ -336,7 +347,7 @@ export class Optimizer {
         return;
       }
       if (!savingsWithinSafetyLimit(savingsPercent)) {
-        throw new Error(`suspicious ${savingsPercent.toFixed(2)}% size reduction exceeds the ${MAX_SAVINGS_PERCENT}% safety limit`);
+        throw new OutputValidationError(`suspicious ${savingsPercent.toFixed(2)}% size reduction exceeds the ${MAX_SAVINGS_PERCENT}% safety limit`);
       }
 
       log("VALIDATE", `Validation complete ${quote(source)}`);
@@ -353,8 +364,10 @@ export class Optimizer {
       if (this.signal?.aborted) {
         log("INFO", `Transcode cancelled during shutdown; original left in place ${quote(source)}`);
       } else {
-        log("ERROR", `Job failed; original left in place: ${String(error)} ${quote(source)}`);
-        try { await this.state.record(source, "error", String(error), encodingProfile(this.config, this.encoder)); } catch { /* The source may have been renamed by Arr. */ }
+        const outcome = jobErrorOutcome(error);
+        const summary = outcome === "rejected" ? "Output rejected; original left in place" : "Job failed; original left in place";
+        log("ERROR", `${summary}: ${String(error)} ${quote(source)}`);
+        try { await this.state.record(source, outcome, String(error), encodingProfile(this.config, this.encoder)); } catch { /* The source may have been renamed by Arr. */ }
       }
     } finally {
       if (cacheOutput) await removeIfPresent(cacheOutput).catch((error) => log("ERROR", `Could not clean cache output: ${String(error)} ${quote(cacheOutput!)}`));

@@ -27,7 +27,7 @@ All application and test source is TypeScript under `src/` and `test/`. The Dock
 - Checks the source size and modification time again before replacement, preventing replacement if another program changed it during encoding.
 - Copies the validated output to a hidden file beside the source, validates that staged copy again, flushes it, and atomically renames it over the source. The original is never explicitly deleted.
 - Requires the configured savings threshold (15% by default) before staging a replacement.
-- Keeps `/config/state.json` so unchanged files that failed the savings threshold are not repeatedly encoded.
+- Keeps `/config/state.json` so unchanged files that failed the savings threshold or produced a deterministically invalid output are not repeatedly encoded. Transient errors remain retryable.
 - Uses an in-memory per-path lock plus a bounded worker pool, so the same source cannot have two concurrent jobs in one service instance. Run only one container against a library.
 
 The service logs status labels including `SCAN`, `TRANSCODE`, `PROGRESS`, `VALIDATE`, `SAVED`, and `ERROR` as one-line plain-text records. Routine skipped-file decisions remain silent. During each transcode, `PROGRESS` is logged at 25%, 50%, 75%, and 100% with FFmpeg's current processing speed and an estimated time remaining.

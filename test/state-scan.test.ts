@@ -41,6 +41,9 @@ test("state suppresses only unchanged completed decisions", async () => {
     const changed = await import("node:fs/promises").then(({ stat }) => stat(media));
     assert.equal(state.isCurrent(media, changed.size, changed.mtimeMs), false);
 
+    await state.record(media, "rejected", "video packet count changed");
+    assert.equal(state.isCurrent(media, changed.size, changed.mtimeMs), true);
+
     await state.record(media, "error", "temporary failure");
     assert.equal(state.isCurrent(media, changed.size, changed.mtimeMs), false);
 
