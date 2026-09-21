@@ -3,7 +3,7 @@ import { mkdtemp, rm, stat, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { calculateQvbrTarget, cleanupOrphanedCacheFiles, ffmpegArgs, isRemuxSource, jobErrorOutcome, OutputValidationError, savingsWithinSafetyLimit, vaapiCqpSelfTestArgs, vaapiQvbrSelfTestArgs } from "../src/optimizer.js";
+import { calculateQvbrTarget, cleanupOrphanedCacheFiles, enqueueUnseenFiles, ffmpegArgs, isRemuxSource, jobErrorOutcome, OutputValidationError, remainingScanDelayMs, savingsWithinSafetyLimit, vaapiCqpSelfTestArgs, vaapiQvbrSelfTestArgs } from "../src/optimizer.js";
 import { Config } from "../src/types.js";
 
 const config: Config = {
@@ -92,6 +92,21 @@ test("software-decode fallback uploads NV12 frames to the Intel encoder", () => 
   assert.ok(!args.includes("-hwaccel"));
   assert.equal(args[args.indexOf("-filter:2") + 1], "format=nv12,hwupload");
   assert.equal(args[args.indexOf("-c:2") + 1], "hevc_vaapi");
+});
+
+test("new discoveries join an active queue once in sorted order", () => {
+  const queue = ["/media/b.mkv"];
+  const seen = new Set(queue);
+  assert.equal(enqueueUnseenFiles(queue, seen, ["/media/d.mkv", "/media/a.mkv", "/media/b.mkv"]), 2);
+  assert.deepEqual(queue, ["/media/b.mkv", "/media/a.mkv", "/media/d.mkv"]);
+  assert.equal(enqueueUnseenFiles(queue, seen, ["/media/a.mkv", "/media/d.mkv"]), 0);
+});
+
+test("scan cadence is measured from the previous scan start", () => {
+  assert.equal(remainingScanDelayMs(60, 15 * 60_000), 45 * 60_000);
+  assert.equal(remainingScanDelayMs(60, 60 * 60_000), 0);
+  assert.equal(remainingScanDelayMs(60, 75 * 60_000), 0);
+  assert.equal(remainingScanDelayMs(0, 0), 0);
 });
 
 test("M4V output uses the HEVC-capable MP4 muxer", () => {

@@ -22,6 +22,21 @@ export function savingsWithinSafetyLimit(savingsPercent: number): boolean {
   return savingsPercent <= MAX_SAVINGS_PERCENT;
 }
 
+export function enqueueUnseenFiles(queue: string[], seen: Set<string>, files: Iterable<string>): number {
+  const unseen = [...files]
+    .filter((file) => !seen.has(file))
+    .sort();
+  for (const file of unseen) {
+    seen.add(file);
+    queue.push(file);
+  }
+  return unseen.length;
+}
+
+export function remainingScanDelayMs(intervalMinutes: number, elapsedMs: number): number {
+  return Math.max(0, intervalMinutes * 60_000 - elapsedMs);
+}
+
 const REMUX_PATTERN = /(?:^|[^a-z0-9])(?:remux|bdremux)(?=$|[^a-z0-9])|(?:blu[\s._-]*ray|uhd)[\s._-]*remux/i;
 
 function identifyingMetadata(tags?: Record<string, string>): string[] {
@@ -388,8 +403,7 @@ export class Optimizer {
     }
   }
 
-  async scanOnce(): Promise<void> {
-    await mkdir(this.config.cacheDir, { recursive: true });
+  private async discoverMediaFiles(): Promise<Set<string>> {
     const files = new Set<string>();
     for (const root of this.config.inputPaths) {
       try {
@@ -398,16 +412,33 @@ export class Optimizer {
         log("ERROR", `Media root scan failed: ${String(error)} ${quote(root)}`);
       }
     }
-    const queue = [...files].sort();
+    return files;
+  }
+
+  async scanOnce(): Promise<void> {
+    await mkdir(this.config.cacheDir, { recursive: true });
+    const queue: string[] = [];
+    const seen = new Set<string>();
+    enqueueUnseenFiles(queue, seen, await this.discoverMediaFiles());
     log("SCAN", `Found ${queue.length} media file${queue.length === 1 ? "" : "s"} using ${this.config.workers} worker${this.config.workers === 1 ? "" : "s"}.`);
+    const refreshIntervalMs = this.config.scanIntervalMinutes * 60_000;
+    let nextRefreshAt = refreshIntervalMs > 0 ? Date.now() + refreshIntervalMs : Number.POSITIVE_INFINITY;
 
     // Run bounded waves so Sonarr/Radarr rescans only happen when no worker has
     // a staged file beside its source. A series-wide rename can otherwise remove
-    // another worker's hidden staging file mid-replacement.
+    // another worker's hidden staging file mid-replacement. Refresh discovery
+    // between waves so downloads arriving during a long scan join this queue.
     for (let start = 0; !this.signal?.aborted && start < queue.length; start += this.config.workers) {
       const batch = queue.slice(start, start + this.config.workers);
       await Promise.all(batch.map((file) => this.processFile(file)));
       await this.flushArrNotifications();
+      if (!this.signal?.aborted && Date.now() >= nextRefreshAt) {
+        const added = enqueueUnseenFiles(queue, seen, await this.discoverMediaFiles());
+        if (added > 0) {
+          log("SCAN", `Found ${added} new media file${added === 1 ? "" : "s"} during the active scan.`);
+        }
+        nextRefreshAt = Date.now() + refreshIntervalMs;
+      }
     }
     await this.flushArrNotifications();
   }

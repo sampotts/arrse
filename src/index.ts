@@ -1,6 +1,6 @@
 import { loadConfig } from "./config.js";
 import { log, quote } from "./logger.js";
-import { cleanupOrphanedCacheFiles, Optimizer, verifyVaapiCqp, verifyVaapiQvbr } from "./optimizer.js";
+import { cleanupOrphanedCacheFiles, Optimizer, remainingScanDelayMs, verifyVaapiCqp, verifyVaapiQvbr } from "./optimizer.js";
 import { StateStore } from "./state.js";
 import { HardwareEncoder } from "./types.js";
 
@@ -57,9 +57,11 @@ async function main(): Promise<void> {
   }
   const optimizer = new Optimizer(config, state, encoder, undefined, shutdown.signal);
   do {
+    const scanStartedAt = Date.now();
     await optimizer.scanOnce();
     if (stopping || config.scanIntervalMinutes === 0) break;
-    await waitOrStop(config.scanIntervalMinutes * 60_000);
+    const delay = remainingScanDelayMs(config.scanIntervalMinutes, Date.now() - scanStartedAt);
+    if (delay > 0) await waitOrStop(delay);
   } while (!stopping);
 }
 

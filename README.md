@@ -74,7 +74,7 @@ docker exec arrse ffmpeg -hide_banner -encoders
 | `DRY_RUN` | `true` | Report eligible files without transcoding |
 | `PROCESS_REMUX` | `false` | Process remux sources; disabled by default to preserve original disc quality |
 | `WORKERS` | `2` | Maximum concurrent transcodes (1–32) |
-| `SCAN_INTERVAL_MINUTES` | `60` | Delay between scans; `0` runs once and exits |
+| `SCAN_INTERVAL_MINUTES` | `60` | Scan start cadence; active long scans refresh their queue at this interval; `0` runs once and exits |
 | `MIN_SAVINGS_PERCENT` | `15` | Minimum reduction required for replacement |
 | `TARGET_SAVINGS_PERCENT` | `20` | Whole-file reduction QVBR targets when choosing its video bitrate; must be at least `MIN_SAVINGS_PERCENT` |
 | `QUALITY` | `20` | QVBR quality bound or CQP quantizer (1–51); lower means higher quality and typically larger output |
