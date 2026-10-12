@@ -6,6 +6,7 @@ export class StateStore {
   private data: StateFile = { version: 1, files: {} };
   private readonly file: string;
   private writeChain: Promise<void> = Promise.resolve();
+  private dirty = false;
 
   constructor(configDir: string) {
     this.file = path.join(configDir, "state.json");
@@ -31,15 +32,26 @@ export class StateStore {
     return Boolean(entry && entry.size === size && Math.trunc(entry.mtimeMs) === Math.trunc(mtimeMs) && entry.outcome !== "error" && entry.outcome !== "dry-run" && (profile === undefined || entry.profile === profile));
   }
 
-  async record(file: string, outcome: StateOutcome, detail?: string, profile?: string): Promise<void> {
+  async recordDeferred(file: string, outcome: StateOutcome, detail?: string, profile?: string): Promise<void> {
     const info = await stat(file);
     const entry: StateEntry = { size: info.size, mtimeMs: info.mtimeMs, outcome, updatedAt: new Date().toISOString(), detail, profile };
     this.data.files[file] = entry;
+    this.dirty = true;
+  }
+
+  async flush(): Promise<void> {
+    if (!this.dirty) return await this.writeChain;
+    this.dirty = false;
     this.writeChain = this.writeChain.then(async () => {
       const temp = `${this.file}.tmp`;
       await writeFile(temp, `${JSON.stringify(this.data, null, 2)}\n`, { mode: 0o600 });
       await rename(temp, this.file);
     });
     await this.writeChain;
+  }
+
+  async record(file: string, outcome: StateOutcome, detail?: string, profile?: string): Promise<void> {
+    await this.recordDeferred(file, outcome, detail, profile);
+    await this.flush();
   }
 }

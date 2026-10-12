@@ -37,6 +37,16 @@ test("state suppresses only unchanged completed decisions", async () => {
     assert.equal(state.isCurrent(media, initial.size, initial.mtimeMs, "v2:vaapi-qvbr"), true);
     assert.equal(state.isCurrent(media, initial.size, initial.mtimeMs, "v2:vaapi-cqp"), false);
 
+    await state.recordDeferred(media, "ineligible", "Video codec is hevc", "v3:eligibility");
+    assert.equal(state.isCurrent(media, initial.size, initial.mtimeMs, "v3:eligibility"), true);
+    const beforeFlush = new StateStore(path.join(root, "config"));
+    await beforeFlush.load();
+    assert.equal(beforeFlush.isCurrent(media, initial.size, initial.mtimeMs, "v3:eligibility"), false);
+    await state.flush();
+    const afterFlush = new StateStore(path.join(root, "config"));
+    await afterFlush.load();
+    assert.equal(afterFlush.isCurrent(media, initial.size, initial.mtimeMs, "v3:eligibility"), true);
+
     await utimes(media, new Date(), new Date(initial.mtimeMs + 2_000));
     const changed = await import("node:fs/promises").then(({ stat }) => stat(media));
     assert.equal(state.isCurrent(media, changed.size, changed.mtimeMs), false);

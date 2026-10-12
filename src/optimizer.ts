@@ -17,6 +17,7 @@ const CACHE_OUTPUT_PATTERN = /^[a-f0-9]{16}-[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9
 const MIN_QVBR_VIDEO_BITRATE = 250_000;
 const MUX_OVERHEAD_BITRATE = 32_000;
 const ENCODING_PROFILE_VERSION = 4;
+const STATE_FLUSH_BATCH_SIZE = 100;
 export const MAX_SAVINGS_PERCENT = 85;
 export function savingsWithinSafetyLimit(savingsPercent: number): boolean {
   return savingsPercent <= MAX_SAVINGS_PERCENT;
@@ -311,6 +312,7 @@ export class Optimizer {
       if (!check.eligible) {
         const reason = check.reason.charAt(0).toUpperCase() + check.reason.slice(1);
         log("SKIP", `${reason} ${quote(source)}`);
+        await this.state.recordDeferred(source, "ineligible", reason, profile);
         return;
       }
       if (this.config.dryRun) {
@@ -428,10 +430,15 @@ export class Optimizer {
     // a staged file beside its source. A series-wide rename can otherwise remove
     // another worker's hidden staging file mid-replacement. Refresh discovery
     // between waves so downloads arriving during a long scan join this queue.
+    let nextStateFlushAt = STATE_FLUSH_BATCH_SIZE;
     for (let start = 0; !this.signal?.aborted && start < queue.length; start += this.config.workers) {
       const batch = queue.slice(start, start + this.config.workers);
       await Promise.all(batch.map((file) => this.processFile(file)));
       await this.flushArrNotifications();
+      if (start + batch.length >= nextStateFlushAt) {
+        await this.state.flush();
+        nextStateFlushAt = start + batch.length + STATE_FLUSH_BATCH_SIZE;
+      }
       if (!this.signal?.aborted && Date.now() >= nextRefreshAt) {
         const added = enqueueUnseenFiles(queue, seen, await this.discoverMediaFiles());
         if (added > 0) {
@@ -441,5 +448,6 @@ export class Optimizer {
       }
     }
     await this.flushArrNotifications();
+    await this.state.flush();
   }
 }
