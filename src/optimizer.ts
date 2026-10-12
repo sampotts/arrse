@@ -302,15 +302,15 @@ export class Optimizer {
         await this.state.record(source, "not-smaller", "Remux source excluded", profile);
         return;
       }
-      const input = await probe(source);
-      if (!this.config.processRemux && isRemuxSource(source, input)) {
+      const summary = await probe(source, false);
+      if (!this.config.processRemux && isRemuxSource(source, summary)) {
         log("SKIP", `Remux source is excluded ${quote(source)}`);
         await this.state.record(source, "not-smaller", "Remux source excluded", profile);
         return;
       }
-      const check = eligibility(input);
-      if (!check.eligible) {
-        const reason = check.reason.charAt(0).toUpperCase() + check.reason.slice(1);
+      const summaryCheck = eligibility(summary);
+      if (!summaryCheck.eligible) {
+        const reason = summaryCheck.reason.charAt(0).toUpperCase() + summaryCheck.reason.slice(1);
         log("SKIP", `${reason} ${quote(source)}`);
         await this.state.recordDeferred(source, "ineligible", reason, profile);
         return;
@@ -320,6 +320,9 @@ export class Optimizer {
         await this.state.record(source, "dry-run", undefined, profile);
         return;
       }
+      const input = await probe(source);
+      const check = eligibility(input);
+      if (!check.eligible) throw new Error(`source changed during inspection: ${check.reason}`);
 
       const digest = createHash("sha256").update(source).digest("hex").slice(0, 16);
       cacheOutput = path.join(this.config.cacheDir, `${digest}-${randomUUID()}${path.extname(source)}`);

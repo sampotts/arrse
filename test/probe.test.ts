@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { eligibility, hdrReason, mediaDuration, progressFrameRate, targetAspectRatio, validateTranscode } from "../src/probe.js";
+import { eligibility, hdrReason, mediaDuration, probeArgs, progressFrameRate, targetAspectRatio, validateTranscode } from "../src/probe.js";
 import { ProbeResult, ProbeStream } from "../src/types.js";
 
 const video = (overrides: Partial<ProbeStream> = {}): ProbeStream => ({
@@ -24,6 +24,13 @@ const media = (stream: ProbeStream, duration = "100"): ProbeResult => ({
   streams: [stream, { index: 1, codec_type: "audio", codec_name: "aac" }],
   chapters: [{ id: 0 }],
   format: { duration }
+});
+
+test("eligibility probes avoid a full packet-count scan", () => {
+  assert.equal(probeArgs("/media/movie.mkv", false).includes("-count_packets"), false);
+  assert.equal(probeArgs("/media/movie.mkv", false).at(-1), "/media/movie.mkv");
+  assert.equal(probeArgs("/media/movie.mkv").includes("-count_packets"), true);
+  assert.equal(probeArgs("/media/movie.mkv").at(-1), "/media/movie.mkv");
 });
 
 test("accepts one SDR H.264 content stream", () => {

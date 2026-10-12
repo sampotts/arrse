@@ -65,16 +65,21 @@ export function targetAspectRatio(stream: ProbeStream): AspectTarget {
   };
 }
 
-export async function probe(file: string): Promise<ProbeResult> {
-  const { stdout } = await run("ffprobe", [
+export function probeArgs(file: string, countPackets = true): string[] {
+  const args = [
     "-v", "error",
     "-show_format",
     "-show_streams",
     "-show_chapters",
-    "-of", "json",
-    "-count_packets",
-    file
-  ]);
+    "-of", "json"
+  ];
+  if (countPackets) args.push("-count_packets");
+  args.push(file);
+  return args;
+}
+
+export async function probe(file: string, countPackets = true): Promise<ProbeResult> {
+  const { stdout } = await run("ffprobe", probeArgs(file, countPackets));
   const result = JSON.parse(stdout) as ProbeResult;
   if (!Array.isArray(result.streams) || result.streams.length === 0) {
     throw new Error("ffprobe returned no streams");
