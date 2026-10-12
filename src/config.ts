@@ -55,7 +55,7 @@ export function loadConfig(): Config {
     workers: integerEnv("WORKERS", 2, 1, 32),
     dryRun: booleanEnv("DRY_RUN", true),
     processRemux: booleanEnv("PROCESS_REMUX", false),
-    scanIntervalMinutes: integerEnv("SCAN_INTERVAL_MINUTES", 60, 0, 10080),
+    scanIntervalMinutes: integerEnv("SCAN_INTERVAL_MINUTES", 360, 0, 10080),
     minSavingsPercent,
     targetSavingsPercent: integerEnv("TARGET_SAVINGS_PERCENT", defaultTargetSavings, minSavingsPercent, 99),
     quality: integerEnv(process.env.QUALITY === undefined ? "QSV_QUALITY" : "QUALITY", 20, 1, 51),

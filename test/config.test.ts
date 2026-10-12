@@ -14,10 +14,26 @@ test("safe defaults include dry-run and two workers", () => {
     assert.equal(config.processRemux, false);
     assert.equal(config.workers, 2);
     assert.deepEqual(config.inputPaths, ["/input"]);
+    assert.equal(config.scanIntervalMinutes, 360);
     assert.equal(config.minSavingsPercent, 15);
     assert.equal(config.quality, 20);
     assert.equal(config.targetSavingsPercent, 20);
     assert.equal(config.device, "/dev/dri/renderD128");
+  } finally {
+    for (const key of managed) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  }
+});
+
+test("allows the scan interval to be configured in minutes", () => {
+  const saved = Object.fromEntries(managed.map((key) => [key, process.env[key]]));
+  try {
+    for (const key of managed) delete process.env[key];
+    process.env.INPUT_PATHS = '["/input"]';
+    process.env.SCAN_INTERVAL_MINUTES = "90";
+    assert.equal(loadConfig().scanIntervalMinutes, 90);
   } finally {
     for (const key of managed) {
       if (saved[key] === undefined) delete process.env[key];
